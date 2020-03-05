@@ -59,7 +59,7 @@ typedef enum
   EVENT_URR,
 } sx_process_event_t;
 
-static vlib_node_registration_t sx_api_process_node;
+static vlib_node_registration_t pfcp_api_process_node;
 
 static void upf_pfcp_make_response (sx_msg_t * resp, sx_msg_t * req,
 				    size_t len);
@@ -444,7 +444,7 @@ upf_pfcp_send_request (upf_session_t * sx, u8 type, struct pfcp_group *grp)
     }
 
   gtp_debug ("sending NOTIFY event %p", msg);
-  vlib_process_signal_event_mt (vm, sx_api_process_node.index, EVENT_TX,
+  vlib_process_signal_event_mt (vm, pfcp_api_process_node.index, EVENT_TX,
 				(uword) msg);
 
 out_free:
@@ -1393,7 +1393,7 @@ upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4)
 	     format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
 	     clib_net_to_host_u16 (msg->lcl.port), msg->data);
 
-  vlib_process_signal_event_mt (vm, sx_api_process_node.index, EVENT_RX,
+  vlib_process_signal_event_mt (vm, pfcp_api_process_node.index, EVENT_RX,
 				(uword) msg);
 }
 
@@ -1403,7 +1403,7 @@ upf_pfcp_server_session_usage_report (upf_event_urr_data_t * uev)
   pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = psm->vlib_main;
 
-  vlib_process_signal_event_mt (vm, sx_api_process_node.index, EVENT_URR, (uword) uev);
+  vlib_process_signal_event_mt (vm, pfcp_api_process_node.index, EVENT_URR, (uword) uev);
 }
 
 /*********************************************************/
@@ -1429,18 +1429,18 @@ pfcp_server_main_init (vlib_main_t * vm)
   udp_register_dst_port (vm, UDP_DST_PORT_SX,
 			 sx6_input_node.index, /* is_ip4 */ 0);
 
-  gtp_debug ("PFCP: start_time: %p, %d, %x.", sx, sx->start_time,
-	     sx->start_time);
+  gtp_debug ("PFCP: start_time: %p, %d, %x.", psm, psm->start_time,
+	     psm->start_time);
   return 0;
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (sx_api_process_node, static) = {
+VLIB_REGISTER_NODE (pfcp_api_process_node, static) = {
     .function = sx_process,
     .type = VLIB_NODE_TYPE_PROCESS,
     .process_log2_n_stack_bytes = 16,
     .runtime_data_bytes = sizeof (void *),
-    .name = "sx-api",
+    .name = "pfcp-api",
 };
 
 /* *INDENT-ON* */
