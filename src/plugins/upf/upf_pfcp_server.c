@@ -61,9 +61,9 @@ typedef enum
 
 static vlib_node_registration_t pfcp_api_process_node;
 
-static void upf_pfcp_make_response (sx_msg_t * resp, sx_msg_t * req,
+static void upf_pfcp_make_response (pfcp_msg_t * resp, pfcp_msg_t * req,
 				    size_t len);
-static void restart_response_timer (sx_msg_t * msg);
+static void restart_response_timer (pfcp_msg_t * msg);
 
 pfcp_server_main_t pfcp_server_main;
 
@@ -118,7 +118,7 @@ void upf_ip_lookup_tx (u32 bi, int is_ip4)
 }
 
 static void
-upf_pfcp_send_data (sx_msg_t * msg)
+upf_pfcp_send_data (pfcp_msg_t * msg)
 {
   vlib_main_t *vm = vlib_get_main ();
   vlib_buffer_t *b0 = 0;
@@ -167,14 +167,14 @@ upf_pfcp_send_data (sx_msg_t * msg)
 }
 
 static int
-encode_sx_session_msg (upf_session_t * sx, u8 type,
-		       struct pfcp_group *grp, sx_msg_t * msg)
+encode_pfcp_session_msg (upf_session_t * sx, u8 type,
+		       struct pfcp_group *grp, pfcp_msg_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   int r = 0;
 
-  init_sx_msg (msg);
+  init_pfcp_msg (msg);
 
   msg->seq_no = clib_atomic_add_fetch (&psm->seq_no, 1) % 0x1000000;
   msg->node = sx->assoc.node;
@@ -223,14 +223,14 @@ encode_sx_session_msg (upf_session_t * sx, u8 type,
 }
 
 static int
-encode_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
-		    sx_msg_t * msg)
+encode_pfcp_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
+		    pfcp_msg_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   int r = 0;
 
-  init_sx_msg (msg);
+  init_pfcp_msg (msg);
 
   msg->seq_no = clib_atomic_add_fetch (&psm->seq_no, 1) % 0x1000000;
   msg->node = n - gtm->nodes;
@@ -271,7 +271,7 @@ encode_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
 }
 
 static int
-upf_pfcp_server_rx_msg (sx_msg_t * msg)
+upf_pfcp_server_rx_msg (pfcp_msg_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   int len = vec_len (msg->data);
@@ -284,7 +284,7 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
 
   if (msg->hdr->version != 1)
     {
-      sx_msg_t resp;
+      pfcp_msg_t resp;
 
       gtp_debug ("PFCP: msg version invalid: %d.", msg->hdr->version);
 
@@ -341,7 +341,7 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
 	  }
 	else
 	  {
-	    sx_msg_t *resp = sx_msg_pool_elt_at_index (psm, p[0]);
+	    pfcp_msg_t *resp = pfcp_msg_pool_elt_at_index (psm, p[0]);
 
 	    gtp_debug ("resend... %d\n", p[0]);
 	    upf_pfcp_send_data (resp);
@@ -363,7 +363,7 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
     case PFCP_SESSION_DELETION_RESPONSE:
     case PFCP_SESSION_REPORT_RESPONSE:
       {
-	sx_msg_t *req;
+	pfcp_msg_t *req;
 	uword *p;
 
 	p = hash_get (psm->request_q, msg->seq_no);
@@ -372,13 +372,13 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
 	if (!p)
 	  break;
 
-	req = sx_msg_pool_elt_at_index (psm, p[0]);
+	req = pfcp_msg_pool_elt_at_index (psm, p[0]);
 	hash_unset (psm->request_q, msg->seq_no);
 	upf_pfcp_server_stop_timer (req->timer);
 
 	msg->node = req->node;
 
-	sx_msg_pool_put (psm, req);
+	pfcp_msg_pool_put (psm, req);
 
 	upf_pfcp_handle_msg (msg);
 
@@ -392,34 +392,34 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
   return 0;
 }
 
-static sx_msg_t *
-build_sx_session_msg (upf_session_t * sx, u8 type, struct pfcp_group *grp)
+static pfcp_msg_t *
+build_pfcp_session_msg (upf_session_t * sx, u8 type, struct pfcp_group *grp)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
   int r = 0;
 
-  msg = sx_msg_pool_get(psm);
-  if ((r = encode_sx_session_msg (sx, type, grp, msg)) != 0)
+  msg = pfcp_msg_pool_get(psm);
+  if ((r = encode_pfcp_session_msg (sx, type, grp, msg)) != 0)
     {
-      sx_msg_pool_put (psm, msg);
+      pfcp_msg_pool_put (psm, msg);
       return NULL;
     }
 
   return msg;
 }
 
-static sx_msg_t *
-build_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp)
+static pfcp_msg_t *
+build_pfcp_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
   int r = 0;
 
-  msg = sx_msg_pool_get(psm);
-  if ((r = encode_sx_node_msg (n, type, grp, msg)) != 0)
+  msg = pfcp_msg_pool_get(psm);
+  if ((r = encode_pfcp_node_msg (n, type, grp, msg)) != 0)
     {
-      sx_msg_pool_put (psm, msg);
+      pfcp_msg_pool_put (psm, msg);
       return NULL;
     }
 
@@ -431,13 +431,13 @@ upf_pfcp_send_request (upf_session_t * sx, u8 type, struct pfcp_group *grp)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = psm->vlib_main;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
   int r = -1;
 
   msg = clib_mem_alloc_aligned_no_fail (sizeof (*msg), CLIB_CACHE_LINE_BYTES);
   memset (msg, 0, sizeof (*msg));
 
-  if ((r = encode_sx_session_msg (sx, type, grp, msg)) != 0)
+  if ((r = encode_pfcp_session_msg (sx, type, grp, msg)) != 0)
     {
       clib_mem_free (msg);
       goto out_free;
@@ -453,10 +453,10 @@ out_free:
 }
 
 static void
-enqueue_request (sx_msg_t * msg, u32 n1, u32 t1)
+enqueue_request (pfcp_msg_t * msg, u32 n1, u32 t1)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  u32 id = sx_msg_get_index(psm, msg);
+  u32 id = pfcp_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
   msg->n1 = n1;
@@ -471,7 +471,7 @@ request_t1_expired (u32 seq_no)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
   uword *p;
 
   p = hash_get (psm->request_q, seq_no);
@@ -480,7 +480,7 @@ request_t1_expired (u32 seq_no)
      /* msg already processed, overlap of timeout and late answer */
      return;
 
-  msg = sx_msg_pool_elt_at_index (psm, p[0]);
+  msg = pfcp_msg_pool_elt_at_index (psm, p[0]);
   gtp_debug ("Msg Seq No: %u, %p, n1 %u\n", msg->seq_no, msg, msg->n1);
 
   if (--msg->n1 != 0)
@@ -499,7 +499,7 @@ request_t1_expired (u32 seq_no)
       // TODO: handle communication breakdown....
 
       hash_unset (psm->request_q, msg->seq_no);
-      sx_msg_pool_put (psm, msg);
+      pfcp_msg_pool_put (psm, msg);
 
       if (type == PFCP_HEARTBEAT_REQUEST
 	  && !pool_is_free_index (gtm->nodes, node))
@@ -512,7 +512,7 @@ request_t1_expired (u32 seq_no)
 }
 
 static void
-upf_pfcp_server_send_request (sx_msg_t * msg)
+upf_pfcp_server_send_request (pfcp_msg_t * msg)
 {
   enqueue_request (msg, 3, 10);
   upf_pfcp_send_data (msg);
@@ -522,9 +522,9 @@ static void
 upf_pfcp_server_send_session_request (upf_session_t * sx, u8 type,
 				      struct pfcp_group *grp)
 {
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
 
-  if ((msg = build_sx_session_msg (sx, type, grp)))
+  if ((msg = build_pfcp_session_msg (sx, type, grp)))
     {
       gtp_debug ("Msg: %p\n", msg);
       upf_pfcp_server_send_request (msg);
@@ -535,9 +535,9 @@ static void
 upf_pfcp_server_send_node_request (upf_node_assoc_t * n, u8 type,
 				   struct pfcp_group *grp)
 {
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
 
-  if ((msg = build_sx_node_msg (n, type, grp)))
+  if ((msg = build_pfcp_node_msg (n, type, grp)))
     {
       gtp_debug ("Node Msg: %p\n", msg);
       upf_pfcp_server_send_request (msg);
@@ -548,20 +548,20 @@ static void
 response_expired (u32 id)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  sx_msg_t *msg = sx_msg_pool_elt_at_index (psm, id);
+  pfcp_msg_t *msg = pfcp_msg_pool_elt_at_index (psm, id);
 
   gtp_debug ("Msg Seq No: %u, %p, idx %u\n", msg->seq_no, msg, id);
   gtp_debug ("release...\n");
 
   mhash_unset (&psm->response_q, msg->request_key, NULL);
-  sx_msg_pool_put (psm, msg);
+  pfcp_msg_pool_put (psm, msg);
 }
 
 static void
-restart_response_timer (sx_msg_t * msg)
+restart_response_timer (pfcp_msg_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  u32 id = sx_msg_get_index(psm, msg);
+  u32 id = pfcp_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
 
@@ -572,10 +572,10 @@ restart_response_timer (sx_msg_t * msg)
 }
 
 static void
-enqueue_response (sx_msg_t * msg)
+enqueue_response (pfcp_msg_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  u32 id = sx_msg_get_index(psm, msg);
+  u32 id = pfcp_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
 
@@ -585,7 +585,7 @@ enqueue_response (sx_msg_t * msg)
 }
 
 static void
-upf_pfcp_make_response (sx_msg_t * resp, sx_msg_t * req, size_t len)
+upf_pfcp_make_response (pfcp_msg_t * resp, pfcp_msg_t * req, size_t len)
 {
   resp->timer = ~0;
   resp->seq_no = req->seq_no;
@@ -596,14 +596,14 @@ upf_pfcp_make_response (sx_msg_t * resp, sx_msg_t * req, size_t len)
 }
 
 int
-upf_pfcp_send_response (sx_msg_t * req, u64 cp_seid, u8 type,
+upf_pfcp_send_response (pfcp_msg_t * req, u64 cp_seid, u8 type,
 			struct pfcp_group *grp)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
-  sx_msg_t *resp;
+  pfcp_msg_t *resp;
   int r = 0;
 
-  resp = sx_msg_pool_get(psm);
+  resp = pfcp_msg_pool_get(psm);
   upf_pfcp_make_response (resp, req, 2048);
 
   resp->hdr->version = req->hdr->version;
@@ -629,7 +629,7 @@ upf_pfcp_send_response (sx_msg_t * req, u64 cp_seid, u8 type,
   r = pfcp_encode_msg (type, grp, &resp->data);
   if (r != 0)
     {
-      sx_msg_pool_put (psm, resp);
+      pfcp_msg_pool_put (psm, resp);
       goto out_free;
     }
 
@@ -1174,7 +1174,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
   u32 *expired = NULL;
   u32 last_expired;
 
-  sx_msg_pool_init (psm);
+  pfcp_msg_pool_init (psm);
   psm->timer.last_run_time =
     psm->now = unix_time_now ();
 
@@ -1196,7 +1196,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
       (void) vlib_process_wait_for_event_or_clock (vm, timeout);
       event_type = vlib_process_get_events (vm, &event_data);
 
-      sx_msg_pool_loop_start (psm);
+      pfcp_msg_pool_loop_start (psm);
       psm->now = unix_time_now ();
 
       /* run the timing wheel first, to that the internal base for new and updated timers
@@ -1213,7 +1213,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 	  {
 	    for (int i = 0; i < vec_len (event_data); i++)
 	      {
-		sx_msg_t *msg = (sx_msg_t *) event_data[i];
+		pfcp_msg_t *msg = (pfcp_msg_t *) event_data[i];
 
 		upf_pfcp_server_rx_msg (msg);
 
@@ -1227,13 +1227,13 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 	  {
 	    for (int i = 0; i < vec_len (event_data); i++)
 	      {
-		sx_msg_t *tx = (sx_msg_t *) event_data[i];
+		pfcp_msg_t *tx = (pfcp_msg_t *) event_data[i];
 
 		if (!pool_is_free_index (gtm->nodes, tx->node))
 		  {
-		    sx_msg_t *msg;
+		    pfcp_msg_t *msg;
 
-		    msg = sx_msg_pool_add (psm, tx);
+		    msg = pfcp_msg_pool_add (psm, tx);
 		    upf_pfcp_server_send_request (msg);
 		  }
 		else
@@ -1343,7 +1343,7 @@ upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4)
   udp_header_t *udp;
   ip4_header_t *ip4;
   ip6_header_t *ip6;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
   u8 *data;
   uword *p;
 

@@ -26,7 +26,7 @@
 #define PRIsMAC "%02x:%02x:%02x:%02x:%02x:%02x"
 #define ARGsMAC(m) (m)[0], (m)[1], (m)[2], (m)[3], (m)[4], (m)[5]
 
-int upf_pfcp_handle_msg (sx_msg_t * msg);
+int upf_pfcp_handle_msg (pfcp_msg_t * msg);
 
 u8 *format_ipfilter (u8 * s, va_list * args);
 

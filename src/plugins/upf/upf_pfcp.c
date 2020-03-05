@@ -392,7 +392,7 @@ sx_release_association (upf_node_assoc_t * n)
   upf_main_t *gtm = &upf_main;
   u32 node_id = n - gtm->nodes;
   u32 idx = n->sessions;
-  sx_msg_t *msg;
+  pfcp_msg_t *msg;
 
   switch (n->node_id.type)
     {
@@ -433,7 +433,7 @@ sx_release_association (upf_node_assoc_t * n)
     hash_unset (psm->request_q, msg->seq_no);
     mhash_unset (&psm->response_q, msg->request_key, NULL);
     upf_pfcp_server_stop_timer (msg->timer);
-    sx_msg_pool_put (psm, msg);
+    pfcp_msg_pool_put (psm, msg);
   }));
   /* *INDENT-ON* */
 }
@@ -1006,7 +1006,7 @@ sx_disable_session (upf_session_t * sx, int drop_msgs)
   if (drop_msgs)
     {
       u32 si = sx - gtm->sessions;
-      sx_msg_t *msg;
+      pfcp_msg_t *msg;
 
       /* *INDENT-OFF* */
       pool_foreach (msg, psm->msg_pool,
@@ -1017,7 +1017,7 @@ sx_disable_session (upf_session_t * sx, int drop_msgs)
 	hash_unset (psm->request_q, msg->seq_no);
 	mhash_unset (&psm->response_q, msg->request_key, NULL);
 	upf_pfcp_server_stop_timer (msg->timer);
-	sx_msg_pool_put (psm, msg);
+	pfcp_msg_pool_put (psm, msg);
       }));
       /* *INDENT-ON* */
 

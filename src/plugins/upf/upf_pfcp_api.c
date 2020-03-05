@@ -58,8 +58,8 @@ typedef struct
   time_t start_time;
 } upf_pfcp_session_t;
 
-static int node_msg (sx_msg_t * msg);
-static int session_msg (sx_msg_t * msg);
+static int node_msg (pfcp_msg_t * msg);
+static int session_msg (pfcp_msg_t * msg);
 
 size_t
 upf_pfcp_api_session_data_size ()
@@ -85,7 +85,7 @@ init_response_node_id (struct pfcp_response *r)
 /*************************************************************************/
 
 int
-upf_pfcp_handle_msg (sx_msg_t * msg)
+upf_pfcp_handle_msg (pfcp_msg_t * msg)
 {
   switch (msg->hdr->type)
     {
@@ -395,7 +395,7 @@ static void
 /* message handlers */
 
 static int
-handle_heartbeat_request (sx_msg_t * req, pfcp_heartbeat_request_t * msg)
+handle_heartbeat_request (pfcp_msg_t * req, pfcp_heartbeat_request_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_simple_response_t resp;
@@ -413,7 +413,7 @@ handle_heartbeat_request (sx_msg_t * req, pfcp_heartbeat_request_t * msg)
 }
 
 static int
-handle_heartbeat_response (sx_msg_t * req, pfcp_simple_response_t * msg)
+handle_heartbeat_response (pfcp_msg_t * req, pfcp_simple_response_t * msg)
 {
   upf_main_t *gtm = &upf_main;
   upf_node_assoc_t *n;
@@ -449,21 +449,21 @@ handle_heartbeat_response (sx_msg_t * req, pfcp_simple_response_t * msg)
 }
 
 static int
-handle_pfd_management_request (sx_msg_t * req,
+handle_pfd_management_request (pfcp_msg_t * req,
 			       pfcp_pfd_management_request_t * msg)
 {
   return -1;
 }
 
 static int
-handle_pfd_management_response (sx_msg_t * req,
+handle_pfd_management_response (pfcp_msg_t * req,
 				pfcp_simple_response_t * msg)
 {
   return -1;
 }
 
 static int
-handle_association_setup_request (sx_msg_t * req,
+handle_association_setup_request (pfcp_msg_t * req,
 				  pfcp_association_setup_request_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
@@ -534,35 +534,35 @@ handle_association_setup_request (sx_msg_t * req,
 }
 
 static int
-handle_association_setup_response (sx_msg_t * req,
+handle_association_setup_response (pfcp_msg_t * req,
 				   pfcp_association_setup_response_t * msg)
 {
   return -1;
 }
 
 static int
-handle_association_update_request (sx_msg_t * req,
+handle_association_update_request (pfcp_msg_t * req,
 				   pfcp_association_update_request_t * msg)
 {
   return -1;
 }
 
 static int
-handle_association_update_response (sx_msg_t * req,
+handle_association_update_response (pfcp_msg_t * req,
 				    pfcp_association_update_response_t * msg)
 {
   return -1;
 }
 
 static int
-handle_association_release_request (sx_msg_t * req,
+handle_association_release_request (pfcp_msg_t * req,
 				    pfcp_association_release_request_t * msg)
 {
   return -1;
 }
 
 static int
-handle_association_release_response (sx_msg_t * req,
+handle_association_release_response (pfcp_msg_t * req,
 				     pfcp_simple_response_t *
 				     msg)
 {
@@ -571,7 +571,7 @@ handle_association_release_response (sx_msg_t * req,
 
 #if 0
 static int
-handle_version_not_supported_response (sx_msg_t * req,
+handle_version_not_supported_response (pfcp_msg_t * req,
 				       pfcp_version_not_supported_response_t *
 				       msg)
 {
@@ -580,20 +580,20 @@ handle_version_not_supported_response (sx_msg_t * req,
 #endif
 
 static int
-handle_node_report_request (sx_msg_t * req, pfcp_node_report_request_t * msg)
+handle_node_report_request (pfcp_msg_t * req, pfcp_node_report_request_t * msg)
 {
   return -1;
 }
 
 static int
-handle_node_report_response (sx_msg_t * req,
+handle_node_report_response (pfcp_msg_t * req,
 			     pfcp_simple_response_t * msg)
 {
   return -1;
 }
 
 static void
-send_simple_repsonse(sx_msg_t * req, u64 seid, u8 type,
+send_simple_repsonse(pfcp_msg_t * req, u64 seid, u8 type,
 		     pfcp_cause_t cause, pfcp_offending_ie_t * err)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
@@ -637,7 +637,7 @@ send_simple_repsonse(sx_msg_t * req, u64 seid, u8 type,
 }
 
 static int
-node_msg (sx_msg_t * msg)
+node_msg (pfcp_msg_t * msg)
 {
   union
   {
@@ -2286,7 +2286,7 @@ upf_usage_report_build (upf_session_t * sx,
 
 
 static int
-handle_session_set_deletion_request (sx_msg_t * req,
+handle_session_set_deletion_request (pfcp_msg_t * req,
 				     pfcp_session_set_deletion_request_t *
 				     msg)
 {
@@ -2294,7 +2294,7 @@ handle_session_set_deletion_request (sx_msg_t * req,
 }
 
 static int
-handle_session_set_deletion_response (sx_msg_t * req,
+handle_session_set_deletion_response (pfcp_msg_t * req,
 				      pfcp_simple_response_t *
 				      msg)
 {
@@ -2302,7 +2302,7 @@ handle_session_set_deletion_response (sx_msg_t * req,
 }
 
 static int
-handle_session_establishment_request (sx_msg_t * req,
+handle_session_establishment_request (pfcp_msg_t * req,
 				      pfcp_session_establishment_request_t *
 				      msg)
 {
@@ -2403,7 +2403,7 @@ out_send_resp:
 }
 
 static int
-handle_session_establishment_response (sx_msg_t * req,
+handle_session_establishment_response (pfcp_msg_t * req,
 				       pfcp_session_establishment_response_t *
 				       msg)
 {
@@ -2411,7 +2411,7 @@ handle_session_establishment_response (sx_msg_t * req,
 }
 
 static int
-handle_session_modification_request (sx_msg_t * req,
+handle_session_modification_request (pfcp_msg_t * req,
 				     pfcp_session_modification_request_t *
 				     msg)
 {
@@ -2584,7 +2584,7 @@ out_send_resp:
 }
 
 static int
-handle_session_modification_response (sx_msg_t * req,
+handle_session_modification_response (pfcp_msg_t * req,
 				      pfcp_session_modification_response_t *
 				      msg)
 {
@@ -2592,7 +2592,7 @@ handle_session_modification_response (sx_msg_t * req,
 }
 
 static int
-handle_session_deletion_request (sx_msg_t * req,
+handle_session_deletion_request (pfcp_msg_t * req,
 				 pfcp_session_deletion_request_t * msg)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
@@ -2654,21 +2654,21 @@ out_send_resp_no_session:
 }
 
 static int
-handle_session_deletion_response (sx_msg_t * req,
+handle_session_deletion_response (pfcp_msg_t * req,
 				  pfcp_session_deletion_response_t * msg)
 {
   return -1;
 }
 
 static int
-handle_session_report_request (sx_msg_t * req,
+handle_session_report_request (pfcp_msg_t * req,
 			       pfcp_session_report_request_t * msg)
 {
   return -1;
 }
 
 static int
-handle_session_report_response (sx_msg_t * req,
+handle_session_report_response (pfcp_msg_t * req,
 				pfcp_session_report_response_t * msg)
 {
   return -1;
@@ -2676,7 +2676,7 @@ handle_session_report_response (sx_msg_t * req,
 
 
 static int
-session_msg (sx_msg_t * msg)
+session_msg (pfcp_msg_t * msg)
 {
   union
   {

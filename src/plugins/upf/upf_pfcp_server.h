@@ -68,7 +68,7 @@ typedef struct
     u8 *data;
     pfcp_header_t *hdr;
   };
-} sx_msg_t;
+} pfcp_msg_t;
 
 typedef struct
 {
@@ -84,7 +84,7 @@ typedef struct
   f64 now;
 
   TWT (tw_timer_wheel) timer;
-  sx_msg_t *msg_pool;
+  pfcp_msg_t *msg_pool;
   u32 * msg_pool_cache;
   u32 * msg_pool_free;
   uword *request_q;
@@ -126,7 +126,7 @@ void upf_pfcp_server_stop_timer (u32 handle);
 int upf_pfcp_send_request (upf_session_t * sx, u8 type,
 			   struct pfcp_group *grp);
 
-int upf_pfcp_send_response (sx_msg_t * req, u64 cp_seid, u8 type,
+int upf_pfcp_send_response (pfcp_msg_t * req, u64 cp_seid, u8 type,
 			    struct pfcp_group *grp);
 
 void upf_pfcp_server_session_usage_report (upf_event_urr_data_t * uev);
@@ -138,7 +138,7 @@ clib_error_t *pfcp_server_main_init (vlib_main_t * vm);
 void upf_ip_lookup_tx (u32 bi, int is_ip4);
 
 static inline void
-init_sx_msg (sx_msg_t * m)
+init_pfcp_msg (pfcp_msg_t * m)
 {
   u8 is_valid_pool_item = m->is_valid_pool_item;
 
@@ -149,7 +149,7 @@ init_sx_msg (sx_msg_t * m)
 }
 
 static inline void
-sx_msg_pool_init (pfcp_server_main_t * psm)
+pfcp_msg_pool_init (pfcp_server_main_t * psm)
 {
   vec_alloc (psm->msg_pool_cache, 128);
   vec_alloc (psm->msg_pool_free, 128);
@@ -157,7 +157,7 @@ sx_msg_pool_init (pfcp_server_main_t * psm)
 }
 
 static inline void
-sx_msg_pool_loop_start (pfcp_server_main_t * psm)
+pfcp_msg_pool_loop_start (pfcp_server_main_t * psm)
 {
   /* move enough entries from free to cache,
      so that cache has max 128 entries */
@@ -175,17 +175,17 @@ sx_msg_pool_loop_start (pfcp_server_main_t * psm)
     }
 }
 
-static inline sx_msg_t *
-sx_msg_pool_get (pfcp_server_main_t * psm)
+static inline pfcp_msg_t *
+pfcp_msg_pool_get (pfcp_server_main_t * psm)
 {
-  sx_msg_t * m;
+  pfcp_msg_t * m;
 
   if (vec_len (psm->msg_pool_cache) != 0)
     {
       u32 index = vec_pop (psm->msg_pool_cache);
 
       m = pool_elt_at_index (psm->msg_pool, index);
-      init_sx_msg (m);
+      init_pfcp_msg (m);
     }
   else
     {
@@ -196,19 +196,19 @@ sx_msg_pool_get (pfcp_server_main_t * psm)
   return m;
 }
 
-static inline sx_msg_t *
-sx_msg_pool_add (pfcp_server_main_t * psm, sx_msg_t * m)
+static inline pfcp_msg_t *
+pfcp_msg_pool_add (pfcp_server_main_t * psm, pfcp_msg_t * m)
 {
-  sx_msg_t * msg;
+  pfcp_msg_t * msg;
 
-  msg = sx_msg_pool_get (psm);
+  msg = pfcp_msg_pool_get (psm);
   clib_memcpy_fast (msg, m, sizeof(*m));
   msg->is_valid_pool_item = 1;
   return msg;
 }
 
 static inline void
-sx_msg_pool_put (pfcp_server_main_t * psm, sx_msg_t * m)
+pfcp_msg_pool_put (pfcp_server_main_t * psm, pfcp_msg_t * m)
 {
   ASSERT (m->is_valid_pool_item);
 
@@ -218,26 +218,26 @@ sx_msg_pool_put (pfcp_server_main_t * psm, sx_msg_t * m)
 }
 
 static inline int
-sx_msg_pool_is_free_index (pfcp_server_main_t * psm, u32 index)
+pfcp_msg_pool_is_free_index (pfcp_server_main_t * psm, u32 index)
 {
   if (!pool_is_free_index (psm->msg_pool, index))
     {
-      sx_msg_t * m = pool_elt_at_index (psm->msg_pool, index);
+      pfcp_msg_t * m = pool_elt_at_index (psm->msg_pool, index);
       return !m->is_valid_pool_item;
     }
   return 0;
 }
 
-static inline sx_msg_t *
-sx_msg_pool_elt_at_index (pfcp_server_main_t * psm, u32 index)
+static inline pfcp_msg_t *
+pfcp_msg_pool_elt_at_index (pfcp_server_main_t * psm, u32 index)
 {
-  sx_msg_t * m = pool_elt_at_index (psm->msg_pool, index);
+  pfcp_msg_t * m = pool_elt_at_index (psm->msg_pool, index);
   ASSERT (m->is_valid_pool_item);
   return m;
 }
 
 static inline u32
-sx_msg_get_index (pfcp_server_main_t * psm, sx_msg_t *m )
+pfcp_msg_get_index (pfcp_server_main_t * psm, pfcp_msg_t *m )
 {
   return m - psm->msg_pool;
 }
