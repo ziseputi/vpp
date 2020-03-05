@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017 Intel and/or its affiliates.
- * Copyright (c) 2018 Travelping GmbH
+ * Copyright (c) 2018-2020 Travelping GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ typedef enum
 
 #ifndef CLIB_MARCH_VARIANT
 u32
-gtpu_end_marker (u32 fib_index, u32 dpoi_index, u8 * rewrite, int is_ip4)
+upf_gtpu_end_marker (u32 fib_index, u32 dpoi_index, u8 * rewrite, int is_ip4)
 {
   upf_main_t *gtm = &upf_main;
   vlib_main_t *vm = gtm->vlib_main;

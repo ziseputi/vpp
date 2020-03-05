@@ -29,14 +29,14 @@
 
 typedef enum
 {
-  GTPU_INPUT_NEXT_DROP,
-  GTPU_INPUT_NEXT_IP4_FLOW_PROCESS,
-  GTPU_INPUT_NEXT_IP6_FLOW_PROCESS,
-  GTPU_INPUT_NEXT_IP4_PROCESS,
-  GTPU_INPUT_NEXT_IP6_PROCESS,
-  GTPU_INPUT_NEXT_ERROR_INDICATION,
-  GTPU_INPUT_NEXT_ECHO_REQUEST,
-  GTPU_INPUT_N_NEXT,
+  UPF_GTPU_INPUT_NEXT_DROP,
+  UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS,
+  UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS,
+  UPF_GTPU_INPUT_NEXT_IP4_PROCESS,
+  UPF_GTPU_INPUT_NEXT_IP6_PROCESS,
+  UPF_GTPU_INPUT_NEXT_ERROR_INDICATION,
+  UPF_GTPU_INPUT_NEXT_ECHO_REQUEST,
+  UPF_GTPU_INPUT_N_NEXT,
 } gtpu_input_next_t;
 
 typedef struct
@@ -72,8 +72,8 @@ format_gtpu_rx_trace (u8 * s, va_list * args)
 }
 
 always_inline uword
-gtpu_input (vlib_main_t * vm,
-	    vlib_node_runtime_t * node, vlib_frame_t * from_frame, u8 is_ip4)
+upf_gtpu_input (vlib_main_t * vm,
+		vlib_node_runtime_t * node, vlib_frame_t * from_frame, u8 is_ip4)
 {
   u32 n_left_from, next_index, *from, *to_next;
   upf_main_t *gtm = &upf_main;
@@ -179,8 +179,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE
 	      ((gtpu0->ver_flags & GTPU_VER_MASK) != GTPU_V1_VER))
 	    {
-	      error0 = GTPU_ERROR_BAD_VER;
-	      next0 = GTPU_INPUT_NEXT_DROP;
+	      error0 = UPF_GTPU_ERROR_BAD_VER;
+	      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace0;
 	    }
 
@@ -189,20 +189,20 @@ gtpu_input (vlib_main_t * vm,
 	      switch (gtpu0->type)
 		{
 		case GTPU_TYPE_ERROR_IND:
-		  next0 = GTPU_INPUT_NEXT_ERROR_INDICATION;
+		  next0 = UPF_GTPU_INPUT_NEXT_ERROR_INDICATION;
 		  break;
 
 		case GTPU_TYPE_ECHO_REQUEST:
-		  next0 = GTPU_INPUT_NEXT_ECHO_REQUEST;
+		  next0 = UPF_GTPU_INPUT_NEXT_ECHO_REQUEST;
 		  break;
 
 		case GTPU_TYPE_ECHO_RESPONSE:
-		  // TODO next0 = GTPU_INPUT_NEXT_ECHO_RESPONSE;
-		  next0 = GTPU_INPUT_NEXT_DROP;
+		  // TODO next0 = UPF_GTPU_INPUT_NEXT_ECHO_RESPONSE;
+		  next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 
 		default:
-		  next0 = GTPU_INPUT_NEXT_DROP;
+		  next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 		}
 
@@ -228,8 +228,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_8_8
 		       (&gtm->v4_tunnel_by_key, &kv, &value)))
 		    {
-		      error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next0 = GTPU_INPUT_NEXT_DROP;
+		      error0 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace0;
 		    }
 		  last_key4.as_u64 = key4_0.as_u64;
@@ -265,8 +265,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_24_8
 		       (&gtm->v6_tunnel_by_key, &kv, &value)))
 		    {
-		      error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next0 = GTPU_INPUT_NEXT_DROP;
+		      error0 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace0;
 		    }
 		  clib_memcpy (&last_key6.key, &kv.key, sizeof (kv.key));
@@ -322,8 +322,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE ((hdr_len0 + sizeof(*ip4_0)) >=
 			     vlib_buffer_length_in_chain (vm, b0)))
 	    {
-	      error0 = GTPU_ERROR_LENGTH_ERROR;
-	      next0 = GTPU_INPUT_NEXT_DROP;
+	      error0 = UPF_GTPU_ERROR_LENGTH_ERROR;
+	      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace0;
 	    }
 
@@ -331,10 +331,10 @@ gtpu_input (vlib_main_t * vm,
 	  ip4_0 = vlib_buffer_get_current (b0) + hdr_len0;
 	  if ((ip4_0->ip_version_and_header_length & 0xF0) == 0x40)
 	    next0 = (~0 == upf_buffer_opaque (b0)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : GTPU_INPUT_NEXT_IP4_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP4_PROCESS;
 	  else
 	    next0 = (~0 == upf_buffer_opaque (b0)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : GTPU_INPUT_NEXT_IP6_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP6_PROCESS;
 
 	  vnet_buffer (b0)->sw_if_index[VLIB_RX] = 0;
 
@@ -356,8 +356,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE
 	      ((gtpu1->ver_flags & GTPU_VER_MASK) != GTPU_V1_VER))
 	    {
-	      error1 = GTPU_ERROR_BAD_VER;
-	      next1 = GTPU_INPUT_NEXT_DROP;
+	      error1 = UPF_GTPU_ERROR_BAD_VER;
+	      next1 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace1;
 	    }
 
@@ -366,20 +366,20 @@ gtpu_input (vlib_main_t * vm,
 	      switch (gtpu1->type)
 		{
 		case GTPU_TYPE_ERROR_IND:
-		  next1 = GTPU_INPUT_NEXT_ERROR_INDICATION;
+		  next1 = UPF_GTPU_INPUT_NEXT_ERROR_INDICATION;
 		  break;
 
 		case GTPU_TYPE_ECHO_REQUEST:
-		  next1 = GTPU_INPUT_NEXT_ECHO_REQUEST;
+		  next1 = UPF_GTPU_INPUT_NEXT_ECHO_REQUEST;
 		  break;
 
 		case GTPU_TYPE_ECHO_RESPONSE:
-		  // TODO next0 = GTPU_INPUT_NEXT_ECHO_RESPONSE;
-		  next1 = GTPU_INPUT_NEXT_DROP;
+		  // TODO next0 = UPF_GTPU_INPUT_NEXT_ECHO_RESPONSE;
+		  next1 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 
 		default:
-		  next1 = GTPU_INPUT_NEXT_DROP;
+		  next1 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 		}
 
@@ -405,8 +405,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_8_8
 		       (&gtm->v4_tunnel_by_key, &kv, &value)))
 		    {
-		      error1 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next1 = GTPU_INPUT_NEXT_DROP;
+		      error1 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next1 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace1;
 		    }
 		  last_key4.as_u64 = key4_1.as_u64;
@@ -442,8 +442,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_24_8
 		       (&gtm->v6_tunnel_by_key, &kv, &value)))
 		    {
-		      error1 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next1 = GTPU_INPUT_NEXT_DROP;
+		      error1 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next1 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace1;
 		    }
 		  clib_memcpy (&last_key6.key, &kv.key, sizeof (kv.key));
@@ -499,8 +499,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE ((hdr_len1 + sizeof(*ip4_1)) >=
 			     vlib_buffer_length_in_chain (vm, b1)))
 	    {
-	      error1 = GTPU_ERROR_LENGTH_ERROR;
-	      next1 = GTPU_INPUT_NEXT_DROP;
+	      error1 = UPF_GTPU_ERROR_LENGTH_ERROR;
+	      next1 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace1;
 	    }
 
@@ -508,10 +508,10 @@ gtpu_input (vlib_main_t * vm,
 	  ip4_1 = vlib_buffer_get_current (b1) + hdr_len1;
 	  if ((ip4_1->ip_version_and_header_length & 0xF0) == 0x40)
 	    next1 = (~0 == upf_buffer_opaque (b1)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : GTPU_INPUT_NEXT_IP4_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP4_PROCESS;
 	  else
 	    next1 = (~0 == upf_buffer_opaque (b1)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : GTPU_INPUT_NEXT_IP6_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP6_PROCESS;
 
 	  vnet_buffer (b1)->sw_if_index[VLIB_RX] = 0;
 
@@ -586,8 +586,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE
 	      ((gtpu0->ver_flags & GTPU_VER_MASK) != GTPU_V1_VER))
 	    {
-	      error0 = GTPU_ERROR_BAD_VER;
-	      next0 = GTPU_INPUT_NEXT_DROP;
+	      error0 = UPF_GTPU_ERROR_BAD_VER;
+	      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace00;
 	    }
 
@@ -596,20 +596,20 @@ gtpu_input (vlib_main_t * vm,
 	      switch (gtpu0->type)
 		{
 		case GTPU_TYPE_ERROR_IND:
-		  next0 = GTPU_INPUT_NEXT_ERROR_INDICATION;
+		  next0 = UPF_GTPU_INPUT_NEXT_ERROR_INDICATION;
 		  break;
 
 		case GTPU_TYPE_ECHO_REQUEST:
-		  next0 = GTPU_INPUT_NEXT_ECHO_REQUEST;
+		  next0 = UPF_GTPU_INPUT_NEXT_ECHO_REQUEST;
 		  break;
 
 		case GTPU_TYPE_ECHO_RESPONSE:
-		  // TODO next0 = GTPU_INPUT_NEXT_ECHO_RESPONSE;
-		  next0 = GTPU_INPUT_NEXT_DROP;
+		  // TODO next0 = UPF_GTPU_INPUT_NEXT_ECHO_RESPONSE;
+		  next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 
 		default:
-		  next0 = GTPU_INPUT_NEXT_DROP;
+		  next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		  break;
 		}
 
@@ -634,8 +634,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_8_8
 		       (&gtm->v4_tunnel_by_key, &kv, &value)))
 		    {
-		      error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next0 = GTPU_INPUT_NEXT_DROP;
+		      error0 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace00;
 		    }
 		  last_key4.as_u64 = key4_0.as_u64;
@@ -671,8 +671,8 @@ gtpu_input (vlib_main_t * vm,
 		      (clib_bihash_search_24_8
 		       (&gtm->v6_tunnel_by_key, &kv, &value)))
 		    {
-		      error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
-		      next0 = GTPU_INPUT_NEXT_DROP;
+		      error0 = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
+		      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 		      goto trace00;
 		    }
 		  clib_memcpy (&last_key6.key, &kv.key, sizeof (kv.key));
@@ -728,8 +728,8 @@ gtpu_input (vlib_main_t * vm,
 	  if (PREDICT_FALSE ((hdr_len0 + sizeof(*ip4_0)) >=
 			     vlib_buffer_length_in_chain (vm, b0)))
 	    {
-	      error0 = GTPU_ERROR_LENGTH_ERROR;
-	      next0 = GTPU_INPUT_NEXT_DROP;
+	      error0 = UPF_GTPU_ERROR_LENGTH_ERROR;
+	      next0 = UPF_GTPU_INPUT_NEXT_DROP;
 	      goto trace00;
 	    }
 
@@ -737,10 +737,10 @@ gtpu_input (vlib_main_t * vm,
 	  ip4_0 = vlib_buffer_get_current (b0) + hdr_len0;
 	  if ((ip4_0->ip_version_and_header_length & 0xF0) == 0x40)
 	    next0 = (~0 == upf_buffer_opaque (b0)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : GTPU_INPUT_NEXT_IP4_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP4_PROCESS;
 	  else
 	    next0 = (~0 == upf_buffer_opaque (b0)->gtpu.pdr_idx) ?
-	      GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : GTPU_INPUT_NEXT_IP6_PROCESS;
+	      UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS : UPF_GTPU_INPUT_NEXT_IP6_PROCESS;
 
 	  vnet_buffer (b0)->sw_if_index[VLIB_RX] = 0;
 
@@ -768,53 +768,53 @@ gtpu_input (vlib_main_t * vm,
     }
   /* Do we still need this now that tunnel tx stats is kept? */
   vlib_node_increment_counter (vm, is_ip4 ?
-			       gtpu4_input_node.index : gtpu6_input_node.
-			       index, GTPU_ERROR_DECAPSULATED,
+			       upf_gtpu4_input_node.index : upf_gtpu6_input_node.
+			       index, UPF_GTPU_ERROR_DECAPSULATED,
 			       pkts_decapsulated);
 
   return from_frame->n_vectors;
 }
 
 
-VLIB_NODE_FN (gtpu4_input_node) (vlib_main_t * vm,
+VLIB_NODE_FN (upf_gtpu4_input_node) (vlib_main_t * vm,
 				 vlib_node_runtime_t * node,
 				 vlib_frame_t * from_frame)
 {
-  return gtpu_input (vm, node, from_frame, /* is_ip4 */ 1);
+  return upf_gtpu_input (vm, node, from_frame, /* is_ip4 */ 1);
 }
 
-VLIB_NODE_FN (gtpu6_input_node) (vlib_main_t * vm,
+VLIB_NODE_FN (upf_gtpu6_input_node) (vlib_main_t * vm,
 				 vlib_node_runtime_t * node,
 				 vlib_frame_t * from_frame)
 {
-  return gtpu_input (vm, node, from_frame, /* is_ip4 */ 0);
+  return upf_gtpu_input (vm, node, from_frame, /* is_ip4 */ 0);
 }
 
-static char *gtpu_error_strings[] = {
-#define gtpu_error(n,s) s,
-#include <upf/gtpu_error.def>
-#undef gtpu_error
+static char *upf_gtpu_error_strings[] = {
+#define upf_gtpu_error(n,s) s,
+#include <upf/upf_gtpu_error.def>
+#undef upf_gtpu_error
 #undef _
 };
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (gtpu4_input_node) = {
-  .name = "gtpu4-input",
+VLIB_REGISTER_NODE (upf_gtpu4_input_node) = {
+  .name = "upf-gtpu4-input",
   /* Takes a vector of packets. */
   .vector_size = sizeof (u32),
 
-  .n_errors = GTPU_N_ERROR,
-  .error_strings = gtpu_error_strings,
+  .n_errors = UPF_GTPU_N_ERROR,
+  .error_strings = upf_gtpu_error_strings,
 
-  .n_next_nodes = GTPU_INPUT_N_NEXT,
+  .n_next_nodes = UPF_GTPU_INPUT_N_NEXT,
   .next_nodes = {
-    [GTPU_INPUT_NEXT_DROP]             = "error-drop",
-    [GTPU_INPUT_NEXT_IP4_FLOW_PROCESS] = "upf-ip4-flow-process",
-    [GTPU_INPUT_NEXT_IP6_FLOW_PROCESS] = "upf-ip6-flow-process",
-    [GTPU_INPUT_NEXT_IP4_PROCESS]      = "upf-ip4-process",
-    [GTPU_INPUT_NEXT_IP6_PROCESS]      = "upf-ip6-process",
-    [GTPU_INPUT_NEXT_ERROR_INDICATION] = "gtp-error-indication",
-    [GTPU_INPUT_NEXT_ECHO_REQUEST]     = "upf-ip4-echo-request",
+    [UPF_GTPU_INPUT_NEXT_DROP]             = "error-drop",
+    [UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS] = "upf-ip4-flow-process",
+    [UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS] = "upf-ip6-flow-process",
+    [UPF_GTPU_INPUT_NEXT_IP4_PROCESS]      = "upf-ip4-process",
+    [UPF_GTPU_INPUT_NEXT_IP6_PROCESS]      = "upf-ip6-process",
+    [UPF_GTPU_INPUT_NEXT_ERROR_INDICATION] = "upf-gtp-error-indication",
+    [UPF_GTPU_INPUT_NEXT_ECHO_REQUEST]     = "upf-gtp-ip4-echo-request",
   },
 
   //temp  .format_buffer = format_gtpu_header,
@@ -824,23 +824,23 @@ VLIB_REGISTER_NODE (gtpu4_input_node) = {
 /* *INDENT-ON* */
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (gtpu6_input_node) = {
-  .name = "gtpu6-input",
+VLIB_REGISTER_NODE (upf_gtpu6_input_node) = {
+  .name = "upf-gtpu6-input",
   /* Takes a vector of packets. */
   .vector_size = sizeof (u32),
 
-  .n_errors = GTPU_N_ERROR,
-  .error_strings = gtpu_error_strings,
+  .n_errors = UPF_GTPU_N_ERROR,
+  .error_strings = upf_gtpu_error_strings,
 
-  .n_next_nodes = GTPU_INPUT_N_NEXT,
+  .n_next_nodes = UPF_GTPU_INPUT_N_NEXT,
   .next_nodes = {
-    [GTPU_INPUT_NEXT_DROP]             = "error-drop",
-    [GTPU_INPUT_NEXT_IP4_FLOW_PROCESS] = "upf-ip4-flow-process",
-    [GTPU_INPUT_NEXT_IP6_FLOW_PROCESS] = "upf-ip6-flow-process",
-    [GTPU_INPUT_NEXT_IP4_PROCESS]      = "upf-ip4-process",
-    [GTPU_INPUT_NEXT_IP6_PROCESS]      = "upf-ip6-process",
-    [GTPU_INPUT_NEXT_ERROR_INDICATION] = "gtp-error-indication",
-    [GTPU_INPUT_NEXT_ECHO_REQUEST]     = "upf-ip6-echo-request",
+    [UPF_GTPU_INPUT_NEXT_DROP]             = "error-drop",
+    [UPF_GTPU_INPUT_NEXT_IP4_FLOW_PROCESS] = "upf-ip4-flow-process",
+    [UPF_GTPU_INPUT_NEXT_IP6_FLOW_PROCESS] = "upf-ip6-flow-process",
+    [UPF_GTPU_INPUT_NEXT_IP4_PROCESS]      = "upf-ip4-process",
+    [UPF_GTPU_INPUT_NEXT_IP6_PROCESS]      = "upf-ip6-process",
+    [UPF_GTPU_INPUT_NEXT_ERROR_INDICATION] = "upf-gtp-error-indication",
+    [UPF_GTPU_INPUT_NEXT_ECHO_REQUEST]     = "upf-gtp-ip6-echo-request",
   },
 
 //temp  .format_buffer = format_gtpu_header,
@@ -973,9 +973,9 @@ decode_error_indication (vlib_buffer_t * b, gtp_error_ind_t * error)
   return 0;
 }
 
-VLIB_NODE_FN(gtp_error_ind_node) (vlib_main_t * vm,
-				  vlib_node_runtime_t * node,
-				  vlib_frame_t * frame)
+VLIB_NODE_FN(upf_gtp_error_ind_node) (vlib_main_t * vm,
+				      vlib_node_runtime_t * node,
+				      vlib_frame_t * frame)
 {
   upf_main_t *gtm = &upf_main;
   u32 *buffers, *first_buffer;
@@ -1026,7 +1026,7 @@ VLIB_NODE_FN(gtp_error_ind_node) (vlib_main_t * vm,
 
       if (decode_error_indication (b, &error) != 0)
 	{
-	  err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	  err = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
 	  goto trace;
 	}
 
@@ -1043,7 +1043,7 @@ VLIB_NODE_FN(gtp_error_ind_node) (vlib_main_t * vm,
 	  if (PREDICT_FALSE
 	      (clib_bihash_search_8_8 (&gtm->v4_tunnel_by_key, &kv, &value)))
 	    {
-	      err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	      err = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
 	      goto trace;
 	    }
 	  session_index = (value.value & 0xffffffff);
@@ -1059,7 +1059,7 @@ VLIB_NODE_FN(gtp_error_ind_node) (vlib_main_t * vm,
 	  if (PREDICT_FALSE
 	      (clib_bihash_search_24_8 (&gtm->v6_tunnel_by_key, &kv, &value)))
 	    {
-	      err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	      err = UPF_GTPU_ERROR_NO_SUCH_TUNNEL;
 	      goto trace;
 	    }
 	  session_index = (value.value & 0xffffffff);
@@ -1086,8 +1086,8 @@ VLIB_NODE_FN(gtp_error_ind_node) (vlib_main_t * vm,
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (gtp_error_ind_node) = {
-  .name = "gtp-error-indication",
+VLIB_REGISTER_NODE (upf_gtp_error_ind_node) = {
+  .name = "upf-gtp-error-indication",
   .flags = VLIB_NODE_FLAG_IS_DROP,
   .vector_size = sizeof (u32),
   //  .format_buffer = format_ip4_header,
@@ -1099,9 +1099,9 @@ VLIB_REGISTER_NODE (gtp_error_ind_node) = {
 
 typedef enum
 {
-  GTPU_ECHO_REQ_NEXT_DROP,
-  GTPU_ECHO_REQ_NEXT_REPLY,
-  GTPU_ECHO_REQ_N_NEXT,
+  UPF_GTPU_ECHO_REQ_NEXT_DROP,
+  UPF_GTPU_ECHO_REQ_NEXT_REPLY,
+  UPF_GTPU_ECHO_REQ_N_NEXT,
 } gtpu_echo_req_next_t;
 
 typedef struct
@@ -1120,9 +1120,9 @@ format_gtpu_ip4_echo_req_trace (u8 * s, va_list * args)
 		 sizeof (t->packet_data));
 }
 
-VLIB_NODE_FN (gtp_ip4_echo_req_node) (vlib_main_t * vm,
-				      vlib_node_runtime_t * node,
-				      vlib_frame_t * frame)
+VLIB_NODE_FN (upf_gtp_ip4_echo_req_node) (vlib_main_t * vm,
+					  vlib_node_runtime_t * node,
+					  vlib_frame_t * frame)
 {
   ip4_main_t *i4m = &ip4_main;
   uword n_packets = frame->n_vectors;
@@ -1152,8 +1152,8 @@ VLIB_NODE_FN (gtp_ip4_echo_req_node) (vlib_main_t * vm,
 
       while (n_left_from > 0 && n_left_to_next > 0)
 	{
-	  u32 next0 = GTPU_ECHO_REQ_NEXT_REPLY;
-	  u32 error0 = GTPU_ERROR_ECHO_RESPONSES_SENT;
+	  u32 next0 = UPF_GTPU_ECHO_REQ_NEXT_REPLY;
+	  u32 error0 = UPF_GTPU_ERROR_ECHO_RESPONSES_SENT;
 	  ip4_header_t *ip0;
 	  udp_header_t *udp0;
 	  gtpu_header_t *gtpu0;
@@ -1238,7 +1238,7 @@ format_gtpu_ip6_echo_req_trace (u8 * s, va_list * args)
 		 sizeof (t->packet_data));
 }
 
-VLIB_NODE_FN (gtp_ip6_echo_req_node) (vlib_main_t * vm,
+VLIB_NODE_FN (upf_gtp_ip6_echo_req_node) (vlib_main_t * vm,
 				      vlib_node_runtime_t * node,
 				      vlib_frame_t * frame)
 {
@@ -1263,8 +1263,8 @@ VLIB_NODE_FN (gtp_ip6_echo_req_node) (vlib_main_t * vm,
 
       while (n_left_from > 0 && n_left_to_next > 0)
 	{
-	  u32 next0 = GTPU_ECHO_REQ_NEXT_REPLY;
-	  u32 error0 = GTPU_ERROR_ECHO_RESPONSES_SENT;
+	  u32 next0 = UPF_GTPU_ECHO_REQ_NEXT_REPLY;
+	  u32 error0 = UPF_GTPU_ERROR_ECHO_RESPONSES_SENT;
 	  ip6_header_t *ip0;
 	  udp_header_t *udp0;
 	  gtpu_header_t *gtpu0;
@@ -1330,35 +1330,35 @@ VLIB_NODE_FN (gtp_ip6_echo_req_node) (vlib_main_t * vm,
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (gtp_ip4_echo_req_node) = {
-  .name = "upf-ip4-echo-request",
+VLIB_REGISTER_NODE (upf_gtp_ip4_echo_req_node) = {
+  .name = "upf-gtp-ip4-echo-request",
   .vector_size = sizeof (u32),
   .format_trace = format_gtpu_ip4_echo_req_trace,
 
-  .n_errors = GTPU_N_ERROR,
-  .error_strings = gtpu_error_strings,
+  .n_errors = UPF_GTPU_N_ERROR,
+  .error_strings = upf_gtpu_error_strings,
 
-  .n_next_nodes = GTPU_ECHO_REQ_N_NEXT,
+  .n_next_nodes = UPF_GTPU_ECHO_REQ_N_NEXT,
   .next_nodes = {
-    [GTPU_ECHO_REQ_NEXT_DROP] = "error-drop",
-    [GTPU_ECHO_REQ_NEXT_REPLY] = "ip4-load-balance",
+    [UPF_GTPU_ECHO_REQ_NEXT_DROP] = "error-drop",
+    [UPF_GTPU_ECHO_REQ_NEXT_REPLY] = "ip4-load-balance",
   },
 };
 /* *INDENT-ON* */
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (gtp_ip6_echo_req_node) = {
-  .name = "upf-ip6-echo-request",
+VLIB_REGISTER_NODE (upf_gtp_ip6_echo_req_node) = {
+  .name = "upf-gtp-ip6-echo-request",
   .vector_size = sizeof (u32),
   .format_trace = format_gtpu_ip6_echo_req_trace,
 
-  .n_errors = GTPU_N_ERROR,
-  .error_strings = gtpu_error_strings,
+  .n_errors = UPF_GTPU_N_ERROR,
+  .error_strings = upf_gtpu_error_strings,
 
-  .n_next_nodes = GTPU_ECHO_REQ_N_NEXT,
+  .n_next_nodes = UPF_GTPU_ECHO_REQ_N_NEXT,
   .next_nodes = {
-    [GTPU_ECHO_REQ_NEXT_DROP] = "error-drop",
-    [GTPU_ECHO_REQ_NEXT_REPLY] = "ip6-lookup",
+    [UPF_GTPU_ECHO_REQ_NEXT_DROP] = "error-drop",
+    [UPF_GTPU_ECHO_REQ_NEXT_REPLY] = "ip6-lookup",
   },
 };
 /* *INDENT-ON* */
@@ -1367,15 +1367,15 @@ VLIB_REGISTER_NODE (gtp_ip6_echo_req_node) = {
 
 typedef enum
 {
-  IP_GTPU_BYPASS_NEXT_DROP,
-  IP_GTPU_BYPASS_NEXT_GTPU,
-  IP_GTPU_BYPASS_N_NEXT,
+  IP_GTPU_UPF_BYPASS_NEXT_DROP,
+  IP_GTPU_UPF_BYPASS_NEXT_GTPU,
+  IP_GTPU_UPF_BYPASS_N_NEXT,
 } ip_vxan_bypass_next_t;
 
 always_inline uword
-ip_gtpu_bypass_inline (vlib_main_t * vm,
-		       vlib_node_runtime_t * node,
-		       vlib_frame_t * frame, u32 is_ip4)
+ip_gtpu_upf_bypass_inline (vlib_main_t * vm,
+			   vlib_node_runtime_t * node,
+			   vlib_frame_t * frame, u32 is_ip4)
 {
   //  upf_main_t * gtm = &upf_main;
   u32 *from, *to_next, n_left_from, n_left_to_next, next_index;
@@ -1547,7 +1547,7 @@ ip_gtpu_bypass_inline (vlib_main_t * vm,
 	    }
 
 	  next0 = error0 ?
-	    IP_GTPU_BYPASS_NEXT_DROP : IP_GTPU_BYPASS_NEXT_GTPU;
+	    IP_GTPU_UPF_BYPASS_NEXT_DROP : IP_GTPU_UPF_BYPASS_NEXT_GTPU;
 	  b0->error = error0 ? error_node->errors[error0] : 0;
 
 	  /* gtpu-input node expect current at GTPU header */
@@ -1641,7 +1641,7 @@ ip_gtpu_bypass_inline (vlib_main_t * vm,
 	    }
 
 	  next1 = error1 ?
-	    IP_GTPU_BYPASS_NEXT_DROP : IP_GTPU_BYPASS_NEXT_GTPU;
+	    IP_GTPU_UPF_BYPASS_NEXT_DROP : IP_GTPU_UPF_BYPASS_NEXT_GTPU;
 	  b1->error = error1 ? error_node->errors[error1] : 0;
 
 	  /* gtpu-input node expect current at GTPU header */
@@ -1771,7 +1771,7 @@ ip_gtpu_bypass_inline (vlib_main_t * vm,
 	    }
 
 	  next0 = error0 ?
-	    IP_GTPU_BYPASS_NEXT_DROP : IP_GTPU_BYPASS_NEXT_GTPU;
+	    IP_GTPU_UPF_BYPASS_NEXT_DROP : IP_GTPU_UPF_BYPASS_NEXT_GTPU;
 	  b0->error = error0 ? error_node->errors[error0] : 0;
 
 	  /* gtpu-input node expect current at GTPU header */
@@ -1796,22 +1796,22 @@ ip_gtpu_bypass_inline (vlib_main_t * vm,
   return frame->n_vectors;
 }
 
-VLIB_NODE_FN (ip4_gtpu_bypass_node) (vlib_main_t * vm,
-				     vlib_node_runtime_t * node,
-				     vlib_frame_t * frame)
+VLIB_NODE_FN (ip4_gtpu_upf_bypass_node) (vlib_main_t * vm,
+					 vlib_node_runtime_t * node,
+					 vlib_frame_t * frame)
 {
-  return ip_gtpu_bypass_inline (vm, node, frame, /* is_ip4 */ 1);
+  return ip_gtpu_upf_bypass_inline (vm, node, frame, /* is_ip4 */ 1);
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (ip4_gtpu_bypass_node) = {
-  .name = "ip4-gtpu-bypass",
+VLIB_REGISTER_NODE (ip4_gtpu_upf_bypass_node) = {
+  .name = "ip4-gtpu-upf-bypass",
   .vector_size = sizeof (u32),
 
-  .n_next_nodes = IP_GTPU_BYPASS_N_NEXT,
+  .n_next_nodes = IP_GTPU_UPF_BYPASS_N_NEXT,
   .next_nodes = {
-    [IP_GTPU_BYPASS_NEXT_DROP] = "error-drop",
-    [IP_GTPU_BYPASS_NEXT_GTPU] = "gtpu4-input",
+    [IP_GTPU_UPF_BYPASS_NEXT_DROP] = "error-drop",
+    [IP_GTPU_UPF_BYPASS_NEXT_GTPU] = "upf-gtpu4-input",
   },
 
   .format_buffer = format_ip4_header,
@@ -1821,28 +1821,28 @@ VLIB_REGISTER_NODE (ip4_gtpu_bypass_node) = {
 
 #ifndef CLIB_MARCH_VARIANT
 /* Dummy init function to get us linked in. */
-clib_error_t * ip4_gtpu_bypass_init (vlib_main_t * vm)
+clib_error_t * ip4_gtpu_upf_bypass_init (vlib_main_t * vm)
 { return 0; }
 
-VLIB_INIT_FUNCTION (ip4_gtpu_bypass_init);
+VLIB_INIT_FUNCTION (ip4_gtpu_upf_bypass_init);
 #endif /* CLIB_MARCH_VARIANT */
 
-VLIB_NODE_FN (ip6_gtpu_bypass_node) (vlib_main_t * vm,
+VLIB_NODE_FN (ip6_gtpu_upf_bypass_node) (vlib_main_t * vm,
 				     vlib_node_runtime_t * node,
 				     vlib_frame_t * frame)
 {
-  return ip_gtpu_bypass_inline (vm, node, frame, /* is_ip4 */ 0);
+  return ip_gtpu_upf_bypass_inline (vm, node, frame, /* is_ip4 */ 0);
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (ip6_gtpu_bypass_node) = {
-  .name = "ip6-gtpu-bypass",
+VLIB_REGISTER_NODE (ip6_gtpu_upf_bypass_node) = {
+  .name = "ip6-gtpu-upf_bypass",
   .vector_size = sizeof (u32),
 
-  .n_next_nodes = IP_GTPU_BYPASS_N_NEXT,
+  .n_next_nodes = IP_GTPU_UPF_BYPASS_N_NEXT,
   .next_nodes = {
-    [IP_GTPU_BYPASS_NEXT_DROP] = "error-drop",
-    [IP_GTPU_BYPASS_NEXT_GTPU] = "gtpu6-input",
+    [IP_GTPU_UPF_BYPASS_NEXT_DROP] = "error-drop",
+    [IP_GTPU_UPF_BYPASS_NEXT_GTPU] = "upf-gtpu6-input",
   },
 
   .format_buffer = format_ip6_header,
@@ -1852,8 +1852,8 @@ VLIB_REGISTER_NODE (ip6_gtpu_bypass_node) = {
 
 #ifndef CLIB_MARCH_VARIANT
 /* Dummy init function to get us linked in. */
-clib_error_t * ip6_gtpu_bypass_init (vlib_main_t * vm)
+clib_error_t * ip6_gtpu_upf_bypass_init (vlib_main_t * vm)
 { return 0; }
 
-VLIB_INIT_FUNCTION (ip6_gtpu_bypass_init);
+VLIB_INIT_FUNCTION (ip6_gtpu_upf_bypass_init);
 #endif /* CLIB_MARCH_VARIANT */

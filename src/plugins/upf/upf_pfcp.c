@@ -1884,8 +1884,8 @@ sx_update_apply (upf_session_t * sx)
 	      description & OUTER_HEADER_CREATION_ANY_IP4);
 
 	gtp_debug ("TODO: send_end_marker for FAR %d", far->id);
-	bi = gtpu_end_marker (send_em->fib_index, send_em->dpoi_index,
-			      far->forward.rewrite, is_ip4);
+	bi = upf_gtpu_end_marker (send_em->fib_index, send_em->dpoi_index,
+				  far->forward.rewrite, is_ip4);
 	upf_ip_lookup_tx (bi, is_ip4);
       }
       vec_free (active->send_end_marker);

@@ -30,8 +30,8 @@ if(HS_FOUND)
     upf.c
     upf_api.c
     upf_cli.c
-    gtpu_encap.c
-    gtpu_decap.c
+    upf_gtpu_encap.c
+    upf_gtpu_decap.c
     upf_if_input.c
     upf_flow_node.c
     upf_classify.c
@@ -48,8 +48,8 @@ if(HS_FOUND)
     flowtable.c
 
     MULTIARCH_SOURCES
-    gtpu_encap.c
-    gtpu_decap.c
+    upf_gtpu_encap.c
+    upf_gtpu_decap.c
     upf_if_input.c
     upf_flow_node.c
     upf_classify.c
@@ -80,5 +80,5 @@ if(HS_FOUND)
     upf_test.c
   )
 else()
-  message(WARNING "Userspace RCU or Hyperscan not found - GTP UPF disabled")
+  message(WARNING "Hyperscan not found - GTP UPF disabled")
 endif()

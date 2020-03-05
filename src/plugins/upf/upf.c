@@ -564,9 +564,9 @@ upf_init (vlib_main_t * vm)
 			UPF_MAPPING_MEMORY_SIZE);
 
   udp_register_dst_port (vm, UDP_DST_PORT_GTPU,
-			 gtpu4_input_node.index, /* is_ip4 */ 1);
+			 upf_gtpu4_input_node.index, /* is_ip4 */ 1);
   udp_register_dst_port (vm, UDP_DST_PORT_GTPU6,
-			 gtpu6_input_node.index, /* is_ip4 */ 0);
+			 upf_gtpu6_input_node.index, /* is_ip4 */ 0);
 
   sm->fib_node_type = fib_node_register_new_type (&upf_vft);
 

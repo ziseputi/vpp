@@ -631,11 +631,11 @@ typedef struct
 
 typedef enum
 {
-#define gtpu_error(n,s) GTPU_ERROR_##n,
-#include <upf/gtpu_error.def>
-#undef gtpu_error
-  GTPU_N_ERROR,
-} gtpu_input_error_t;
+#define upf_gtpu_error(n,s) UPF_GTPU_ERROR_##n,
+#include <upf/upf_gtpu_error.def>
+#undef upf_gtpu_error
+  UPF_GTPU_N_ERROR,
+} upf_gtpu_input_error_t;
 
 typedef struct
 {
@@ -824,8 +824,8 @@ extern upf_main_t upf_main;
 
 extern vlib_node_registration_t upf_node;
 extern vlib_node_registration_t upf_if_input_node;
-extern vlib_node_registration_t gtpu4_input_node;
-extern vlib_node_registration_t gtpu6_input_node;
+extern vlib_node_registration_t upf_gtpu4_input_node;
+extern vlib_node_registration_t upf_gtpu6_input_node;
 extern vlib_node_registration_t upf4_encap_node;
 extern vlib_node_registration_t upf6_encap_node;
 
@@ -846,7 +846,7 @@ typedef struct
 } upf_encap_trace_t;
 
 u8 *format_upf_encap_trace (u8 * s, va_list * args);
-u32 gtpu_end_marker (u32 fib_index, u32 dpoi_index, u8 * rewrite, int is_ip4);
+u32 upf_gtpu_end_marker (u32 fib_index, u32 dpoi_index, u8 * rewrite, int is_ip4);
 
 int upf_enable_disable (upf_main_t * sm, u32 sw_if_index, int enable_disable);
 

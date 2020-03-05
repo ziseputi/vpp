@@ -12,9 +12,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-gtpu_error (DECAPSULATED, "good packets decapsulated")
-gtpu_error (NO_SUCH_TUNNEL, "no such tunnel packets")
-gtpu_error (BAD_VER, "packets with bad version in gtpu header")
-gtpu_error (BAD_FLAGS, "packets with bad flags field in gtpu header")
-gtpu_error (LENGTH_ERROR, "packets with length errors")
-gtpu_error (ECHO_RESPONSES_SENT, "echo responses sent")
+
+upf_gtpu_error (DECAPSULATED, "good packets decapsulated")
+upf_gtpu_error (NO_SUCH_TUNNEL, "no such tunnel packets")
+upf_gtpu_error (BAD_VER, "packets with bad version in gtpu header")
+upf_gtpu_error (BAD_FLAGS, "packets with bad flags field in gtpu header")
+upf_gtpu_error (LENGTH_ERROR, "packets with length errors")
+upf_gtpu_error (ECHO_RESPONSES_SENT, "echo responses sent")
