@@ -3604,7 +3604,7 @@ format_multiplier (u8 * s, va_list * args)
 {
   pfcp_multiplier_t *v = va_arg (*args, pfcp_multiplier_t *);
 
-  return format (s, "%luE%d (%f)", v->digits, v->exponent,
+  return format (s, "%ldE%d (%f)", v->digits, v->exponent,
 		 v->digits * pow (10, v->exponent));
 }
 
@@ -3616,7 +3616,7 @@ decode_multiplier (u8 * data, u16 length, void *p)
   if (length < 12)
     return PFCP_CAUSE_INVALID_LENGTH;
 
-  v->digits = get_u64 (data);
+  v->digits = (i64) get_u64 (data);
   v->exponent = (i32) get_u32 (data);
 
   return 0;
@@ -3627,7 +3627,7 @@ encode_multiplier (void *p, u8 ** vec)
 {
   pfcp_multiplier_t *v = p;
 
-  put_u64 (*vec, v->digits);
+  put_u64 (*vec, (u64) v->digits);
   put_u32 (*vec, (u32) v->exponent);
 
   return 0;

@@ -900,7 +900,7 @@ typedef u32 pfcp_user_plane_inactivity_timer_t;
 #define PFCP_IE_MULTIPLIER				119
 typedef struct
 {
-  u64 digits;
+  i64 digits;
   i32 exponent;
 } pfcp_multiplier_t;
 
