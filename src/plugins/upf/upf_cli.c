@@ -906,14 +906,14 @@ upf_show_session_command_fn (vlib_main_t * vm,
 	  goto done;
 	}
 
-      vlib_cli_output (vm, "%U", format_sx_session, sess, SX_ACTIVE, debug);
+      vlib_cli_output (vm, "%U", format_pfcp_session, sess, SX_ACTIVE, debug);
     }
   else
     {
       /* *INDENT-OFF* */
       pool_foreach (sess, gtm->sessions,
       ({
-	vlib_cli_output (vm, "%U", format_sx_session, sess, SX_ACTIVE, debug);
+	vlib_cli_output (vm, "%U", format_pfcp_session, sess, SX_ACTIVE, debug);
       }));
       /* *INDENT-ON* */
     }
@@ -1002,14 +1002,14 @@ upf_show_assoc_command_fn (vlib_main_t * vm,
 	  goto done;
 	}
 
-      vlib_cli_output (vm, "%U", format_sx_node_association, node, verbose);
+      vlib_cli_output (vm, "%U", format_pfcp_node_association, node, verbose);
     }
   else
     {
       /* *INDENT-OFF* */
       pool_foreach (node, gtm->nodes,
       ({
-	vlib_cli_output (vm, "%U", format_sx_node_association, node, verbose);
+	vlib_cli_output (vm, "%U", format_pfcp_node_association, node, verbose);
       }));
       /* *INDENT-ON* */
     }

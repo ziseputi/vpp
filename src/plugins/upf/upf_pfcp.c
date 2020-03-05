@@ -2431,7 +2431,7 @@ format_upf_far (u8 * s, va_list * args)
 }
 
 u8 *
-format_sx_session (u8 * s, va_list * args)
+format_pfcp_session (u8 * s, va_list * args)
 {
   upf_session_t *sx = va_arg (*args, upf_session_t *);
   int rule = va_arg (*args, int);
@@ -2712,7 +2712,7 @@ format_time_stamp (u8 * s, va_list * args)
 }
 
 u8 *
-format_sx_node_association (u8 * s, va_list * args)
+format_pfcp_node_association (u8 * s, va_list * args)
 {
   upf_node_assoc_t *node = va_arg (*args, upf_node_assoc_t *);
   u8 verbose = va_arg (*args, int);

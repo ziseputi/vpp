@@ -2382,7 +2382,7 @@ handle_session_establishment_request (pfcp_msg_t * req,
 
   sx_update_finish (sess);
 
-  gtp_debug ("%U", format_sx_session, sess, SX_ACTIVE, /*debug*/ 1);
+  gtp_debug ("%U", format_pfcp_session, sess, SX_ACTIVE, /*debug*/ 1);
 
 out_send_resp:
   if (r == 0)
@@ -2571,7 +2571,7 @@ handle_session_modification_request (pfcp_msg_t * req,
 out_update_finish:
   sx_update_finish (sess);
 
-  gtp_debug ("%U", format_sx_session, sess, SX_ACTIVE, /*debug*/ 1);
+  gtp_debug ("%U", format_pfcp_session, sess, SX_ACTIVE, /*debug*/ 1);
 
 out_send_resp:
   if (r == 0)

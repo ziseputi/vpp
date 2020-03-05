@@ -74,7 +74,7 @@ typedef struct
 {
   /* Sx Node Id is either IPv4, IPv6 or FQDN */
   u8 *node_id;
-} sx_node_t;
+} pfcp_node_t;
 
 typedef struct
 {

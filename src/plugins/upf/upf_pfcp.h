@@ -80,9 +80,9 @@ u32 process_qers (vlib_main_t * vm, upf_session_t * sess,
 void upf_pfcp_error_report (upf_session_t * sx, gtp_error_ind_t * error);
 
 /* format functions */
-u8 *format_sx_node_association (u8 * s, va_list * args);
+u8 *format_pfcp_node_association (u8 * s, va_list * args);
 u8 *format_upf_far (u8 * s, va_list * args);
-u8 *format_sx_session (u8 * s, va_list * args);
+u8 *format_pfcp_session (u8 * s, va_list * args);
 u8 *format_pfcp_endpoint (u8 * s, va_list * args);
 u8 *format_network_instance_index (u8 * s, va_list * args);
 u8 *format_gtpu_endpoint (u8 * s, va_list * args);
