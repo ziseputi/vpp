@@ -880,7 +880,7 @@ upf_show_session_command_fn (vlib_main_t * vm,
 #if FLOWTABLE_TODO
   if (has_flows)
     {
-      if (!(sess = sx_lookup (up_seid)))
+      if (!(sess = pfcp_lookup (up_seid)))
 	{
 	  error = clib_error_return (0, "Sessions 0x%lx not found", up_seid);
 	  goto done;
@@ -900,20 +900,20 @@ upf_show_session_command_fn (vlib_main_t * vm,
 
   if (has_up_seid)
     {
-      if (!(sess = sx_lookup (up_seid)))
+      if (!(sess = pfcp_lookup (up_seid)))
 	{
 	  error = clib_error_return (0, "Sessions %d not found", up_seid);
 	  goto done;
 	}
 
-      vlib_cli_output (vm, "%U", format_pfcp_session, sess, SX_ACTIVE, debug);
+      vlib_cli_output (vm, "%U", format_pfcp_session, sess, PFCP_ACTIVE, debug);
     }
   else
     {
       /* *INDENT-OFF* */
       pool_foreach (sess, gtm->sessions,
       ({
-	vlib_cli_output (vm, "%U", format_pfcp_session, sess, SX_ACTIVE, debug);
+	vlib_cli_output (vm, "%U", format_pfcp_session, sess, PFCP_ACTIVE, debug);
       }));
       /* *INDENT-ON* */
     }
@@ -991,7 +991,7 @@ upf_show_assoc_command_fn (vlib_main_t * vm,
 	  node_id.fqdn = upf_name_to_labels (fqdn);
 	}
 
-      node = sx_get_association (&node_id);
+      node = pfcp_get_association (&node_id);
 
       if (node_id.type == NID_FQDN)
 	vec_free (node_id.fqdn);

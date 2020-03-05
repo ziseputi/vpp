@@ -241,10 +241,10 @@ upf_encap_inline (vlib_main_t * vm,
 	  s2 = &gtm->sessions[upf_buffer_opaque (b2)->gtpu.session_index];
 	  s3 = &gtm->sessions[upf_buffer_opaque (b3)->gtpu.session_index];
 
-	  r0 = sx_get_rules (s0, SX_ACTIVE);
-	  r1 = sx_get_rules (s1, SX_ACTIVE);
-	  r2 = sx_get_rules (s2, SX_ACTIVE);
-	  r3 = sx_get_rules (s3, SX_ACTIVE);
+	  r0 = pfcp_get_rules (s0, PFCP_ACTIVE);
+	  r1 = pfcp_get_rules (s1, PFCP_ACTIVE);
+	  r2 = pfcp_get_rules (s2, PFCP_ACTIVE);
+	  r3 = pfcp_get_rules (s3, PFCP_ACTIVE);
 
 	  /* TODO: this should be optimized */
 	  pdr0 = r0->pdr + upf_buffer_opaque (b0)->gtpu.pdr_idx;
@@ -253,10 +253,10 @@ upf_encap_inline (vlib_main_t * vm,
 	  pdr3 = r3->pdr + upf_buffer_opaque (b3)->gtpu.pdr_idx;
 
 	  /* TODO: this should be optimized */
-	  far0 = sx_get_far_by_id (r0, pdr0->far_id);
-	  far1 = sx_get_far_by_id (r1, pdr1->far_id);
-	  far2 = sx_get_far_by_id (r2, pdr2->far_id);
-	  far3 = sx_get_far_by_id (r3, pdr3->far_id);
+	  far0 = pfcp_get_far_by_id (r0, pdr0->far_id);
+	  far1 = pfcp_get_far_by_id (r1, pdr1->far_id);
+	  far2 = pfcp_get_far_by_id (r2, pdr2->far_id);
+	  far3 = pfcp_get_far_by_id (r3, pdr3->far_id);
 
 	  peer0 = pool_elt_at_index (gtm->peers, far0->forward.peer_idx);
 	  peer1 = pool_elt_at_index (gtm->peers, far1->forward.peer_idx);
@@ -618,11 +618,11 @@ upf_encap_inline (vlib_main_t * vm,
 	  /* Get next node index and adj index from tunnel next_dpo */
 	  s0 = &gtm->sessions[upf_buffer_opaque (b0)->gtpu.session_index];
 
-	  r0 = sx_get_rules (s0, SX_ACTIVE);
+	  r0 = pfcp_get_rules (s0, PFCP_ACTIVE);
 
 	  /* TODO: this should be optimized */
 	  pdr0 = r0->pdr + upf_buffer_opaque (b0)->gtpu.pdr_idx;
-	  far0 = sx_get_far_by_id (r0, pdr0->far_id);
+	  far0 = pfcp_get_far_by_id (r0, pdr0->far_id);
 
 	  peer0 = pool_elt_at_index (gtm->peers, far0->forward.peer_idx);
 

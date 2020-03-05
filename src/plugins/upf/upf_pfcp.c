@@ -52,11 +52,11 @@ upf_main_t upf_main;
 #define SESS_MODIFY 1
 #define SESS_DEL 2
 
-static void sx_add_del_ue_ip (const void *ue_ip, void *si, int is_add);
-static void sx_add_del_v4_teid (const void *teid, void *si, int is_add);
-static void sx_add_del_v6_teid (const void *teid, void *si, int is_add);
-static void sx_add_del_v4_tdf (const void *tdf, void *si, int is_add);
-static void sx_add_del_v6_tdf (const void *tdf, void *si, int is_add);
+static void pfcp_add_del_ue_ip (const void *ue_ip, void *si, int is_add);
+static void pfcp_add_del_v4_teid (const void *teid, void *si, int is_add);
+static void pfcp_add_del_v6_teid (const void *teid, void *si, int is_add);
+static void pfcp_add_del_v4_tdf (const void *tdf, void *si, int is_add);
+static void pfcp_add_del_v6_tdf (const void *tdf, void *si, int is_add);
 u8 * format_upf_acl (u8 * s, va_list * args);
 
 #define vec_bsearch(k, v, compar)				\
@@ -256,7 +256,7 @@ vnet_upf_nwi_add_del (u8 * name, u32 ip4_table_id, u32 ip6_table_id, u8 add)
 }
 
 static int
-sx_pdr_id_compare (const void *p1, const void *p2)
+pfcp_pdr_id_compare (const void *p1, const void *p2)
 {
   const upf_pdr_t *a = (upf_pdr_t *) p1;
   const upf_pdr_t *b = (upf_pdr_t *) p2;
@@ -301,7 +301,7 @@ sx_pdr_id_compare (const void *p1, const void *p2)
   } while (0)
 
 static int
-sx_far_id_compare (const void *p1, const void *p2)
+pfcp_far_id_compare (const void *p1, const void *p2)
 {
   const upf_far_t *a = (upf_far_t *) p1;
   const upf_far_t *b = (upf_far_t *) p2;
@@ -311,7 +311,7 @@ sx_far_id_compare (const void *p1, const void *p2)
 }
 
 static int
-sx_urr_id_compare (const void *p1, const void *p2)
+pfcp_urr_id_compare (const void *p1, const void *p2)
 {
   const upf_urr_t *a = (upf_urr_t *) p1;
   const upf_urr_t *b = (upf_urr_t *) p2;
@@ -321,7 +321,7 @@ sx_urr_id_compare (const void *p1, const void *p2)
 }
 
 static int
-sx_qer_id_compare (const void *p1, const void *p2)
+pfcp_qer_id_compare (const void *p1, const void *p2)
 {
   const upf_qer_t *a = (upf_qer_t *) p1;
   const upf_qer_t *b = (upf_qer_t *) p2;
@@ -331,7 +331,7 @@ sx_qer_id_compare (const void *p1, const void *p2)
 }
 
 upf_node_assoc_t *
-sx_get_association (pfcp_node_id_t * node_id)
+pfcp_get_association (pfcp_node_id_t * node_id)
 {
   upf_main_t *gtm = &upf_main;
   uword *p = NULL;
@@ -355,7 +355,7 @@ sx_get_association (pfcp_node_id_t * node_id)
 }
 
 upf_node_assoc_t *
-sx_new_association (u32 fib_index, ip46_address_t * lcl_addr,
+pfcp_new_association (u32 fib_index, ip46_address_t * lcl_addr,
 		    ip46_address_t * rmt_addr, pfcp_node_id_t * node_id)
 {
   upf_main_t *gtm = &upf_main;
@@ -386,7 +386,7 @@ sx_new_association (u32 fib_index, ip46_address_t * lcl_addr,
 }
 
 void
-sx_release_association (upf_node_assoc_t * n)
+pfcp_release_association (upf_node_assoc_t * n)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
@@ -407,7 +407,7 @@ sx_release_association (upf_node_assoc_t * n)
       break;
     }
 
-  gtp_debug ("sx_release_association idx: %u");
+  gtp_debug ("pfcp_release_association idx: %u");
 
   while (idx != ~0)
     {
@@ -417,10 +417,10 @@ sx_release_association (upf_node_assoc_t * n)
 
       idx = sx->assoc.next;
 
-      if (sx_disable_session (sx, false) != 0)
+      if (pfcp_disable_session (sx, false) != 0)
 	clib_error ("failed to remove UPF session 0x%016" PRIx64,
 		    sx->cp_seid);
-      sx_free_session (sx);
+      pfcp_free_session (sx);
     }
 
   ASSERT (n->sessions == ~0);
@@ -442,7 +442,7 @@ static void
 node_assoc_attach_session (upf_node_assoc_t * n, upf_session_t * sx)
 {
   upf_main_t *gtm = &upf_main;
-  u32 sx_idx = sx - gtm->sessions;
+  u32 pfcp_idx = sx - gtm->sessions;
 
   sx->assoc.node = n - gtm->nodes;
   sx->assoc.prev = ~0;
@@ -455,11 +455,11 @@ node_assoc_attach_session (upf_node_assoc_t * n, upf_session_t * sx)
       ASSERT (prev->assoc.node == sx->assoc.node);
       ASSERT (!pool_is_free_index (gtm->sessions, n->sessions));
 
-      prev->assoc.prev = sx_idx;
+      prev->assoc.prev = pfcp_idx;
     }
 
   sx->assoc.next = n->sessions;
-  n->sessions = sx_idx;
+  n->sessions = pfcp_idx;
 }
 
 static void
@@ -500,7 +500,7 @@ node_assoc_detach_session (upf_session_t * sx)
 }
 
 upf_session_t *
-sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
+pfcp_create_session (upf_node_assoc_t * assoc, int pfcp_fib_index,
 		   const ip46_address_t * up_address, uint64_t cp_seid,
 		   const ip46_address_t * cp_address)
 {
@@ -519,7 +519,7 @@ sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
   pool_get_aligned (gtm->sessions, sx, CLIB_CACHE_LINE_BYTES);
   memset (sx, 0, sizeof (*sx));
 
-  sx->fib_index = sx_fib_index;
+  sx->fib_index = pfcp_fib_index;
   sx->up_address = *up_address;
   sx->cp_seid = cp_seid;
   sx->cp_address = *cp_address;
@@ -542,10 +542,10 @@ sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
 }
 
 void
-sx_update_session (upf_session_t * sx)
+pfcp_update_session (upf_session_t * sx)
 {
-  struct rules *active = sx_get_rules(sx, SX_ACTIVE);
-  struct rules *pending = sx_get_rules(sx, SX_PENDING);
+  struct rules *active = pfcp_get_rules(sx, PFCP_ACTIVE);
+  struct rules *pending = pfcp_get_rules(sx, PFCP_PENDING);
 
   // TODO: do we need some kind of update lock ?
 
@@ -708,7 +708,7 @@ peer_addr_unref (const upf_far_forward_t * fwd)
 }
 
 static inline void
-sx_free_pdr (upf_pdr_t *pdr)
+pfcp_free_pdr (upf_pdr_t *pdr)
 {
   upf_adf_put_adr_db (pdr->pdi.adr.db_id);
   vec_free (pdr->pdi.acl);
@@ -717,10 +717,10 @@ sx_free_pdr (upf_pdr_t *pdr)
 }
 
 int
-sx_make_pending_pdr (upf_session_t * sx)
+pfcp_make_pending_pdr (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
 
   if (pending->pdr)
     return 0;
@@ -745,16 +745,16 @@ sx_make_pending_pdr (upf_session_t * sx)
 }
 
 static inline void
-sx_free_far (upf_far_t *far)
+pfcp_free_far (upf_far_t *far)
 {
   vec_free (far->forward.rewrite);
 }
 
 int
-sx_make_pending_far (upf_session_t * sx)
+pfcp_make_pending_far (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
 
   if (pending->far)
     return 0;
@@ -784,7 +784,7 @@ sx_make_pending_far (upf_session_t * sx)
 }
 
 static inline void
-sx_free_urr (upf_urr_t *urr)
+pfcp_free_urr (upf_urr_t *urr)
 {
   upf_urr_traffic_t *tt;
 
@@ -802,10 +802,10 @@ sx_free_urr (upf_urr_t *urr)
 }
 
 int
-sx_make_pending_urr (upf_session_t * sx)
+pfcp_make_pending_urr (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
   upf_urr_t *urr;
 
   if (pending->urr)
@@ -867,7 +867,7 @@ attach_qer_policer (upf_qer_t * qer)
   upf_main_t *gtm = &upf_main;
   upf_qer_policer_t *pol;
 
-  if (qer->policer.key == ~0 || !(qer->flags & SX_QER_MBR))
+  if (qer->policer.key == ~0 || !(qer->flags & PFCP_QER_MBR))
     return;
 
   if (clib_bihash_search_inline_8_8 (&gtm->qer_by_id, &qer->policer))
@@ -899,16 +899,16 @@ detach_qer_policer (upf_qer_t * qer)
 }
 
 static inline void
-sx_free_qer (upf_qer_t *qer)
+pfcp_free_qer (upf_qer_t *qer)
 {
   detach_qer_policer (qer);
 }
 
 int
-sx_make_pending_qer (upf_session_t * sx)
+pfcp_make_pending_qer (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
   upf_qer_t *qer;
 
   if (pending->qer)
@@ -927,9 +927,9 @@ sx_make_pending_qer (upf_session_t * sx)
 }
 
 static void
-sx_free_rules (upf_session_t * sx, int rule)
+pfcp_free_rules (upf_session_t * sx, int rule)
 {
-  struct rules *rules = sx_get_rules (sx, rule);
+  struct rules *rules = pfcp_get_rules (sx, rule);
   upf_pdr_t *pdr;
   upf_far_t *far;
   upf_urr_t *urr;
@@ -937,23 +937,23 @@ sx_free_rules (upf_session_t * sx, int rule)
 
   vec_foreach (pdr, rules->pdr)
   {
-    sx_free_pdr (pdr);
+    pfcp_free_pdr (pdr);
   }
 
   vec_free (rules->pdr);
   vec_foreach (far, rules->far)
     {
-      sx_free_far (far);
+      pfcp_free_far (far);
     }
   vec_free (rules->far);
   vec_foreach (urr, rules->urr)
     {
-      sx_free_urr (urr);
+      pfcp_free_urr (urr);
     }
   vec_free (rules->urr);
   vec_foreach (qer, rules->qer)
   {
-      sx_free_qer (qer);
+      pfcp_free_qer (qer);
   }
   vec_free (rules->qer);
   vec_free (rules->ue_src_ip);
@@ -967,9 +967,9 @@ sx_free_rules (upf_session_t * sx, int rule)
 }
 
 int
-sx_disable_session (upf_session_t * sx, int drop_msgs)
+pfcp_disable_session (upf_session_t * sx, int drop_msgs)
 {
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
   pfcp_server_main_t *psm = &pfcp_server_main;
   const f64 now = psm->timer.last_run_time;
   upf_main_t *gtm = &upf_main;
@@ -980,12 +980,12 @@ sx_disable_session (upf_session_t * sx, int drop_msgs)
   upf_acl_t *acl;
 
   hash_unset (gtm->session_by_id, sx->cp_seid);
-  vec_foreach (v4_teid, active->v4_teid) sx_add_del_v4_teid (v4_teid, sx, 0);
-  vec_foreach (v6_teid, active->v6_teid) sx_add_del_v6_teid (v6_teid, sx, 0);
-  vec_foreach (ue_ip, active->ue_dst_ip) sx_add_del_ue_ip (ue_ip, sx, 0);
-  vec_foreach (ue_ip, active->ue_src_ip) sx_add_del_ue_ip (ue_ip, sx, 0);
-  vec_foreach (acl, active->v4_acls) sx_add_del_v4_tdf(acl, sx, 0);
-  vec_foreach (acl, active->v6_acls) sx_add_del_v6_tdf(acl, sx, 0);
+  vec_foreach (v4_teid, active->v4_teid) pfcp_add_del_v4_teid (v4_teid, sx, 0);
+  vec_foreach (v6_teid, active->v6_teid) pfcp_add_del_v6_teid (v6_teid, sx, 0);
+  vec_foreach (ue_ip, active->ue_dst_ip) pfcp_add_del_ue_ip (ue_ip, sx, 0);
+  vec_foreach (ue_ip, active->ue_src_ip) pfcp_add_del_ue_ip (ue_ip, sx, 0);
+  vec_foreach (acl, active->v4_acls) pfcp_add_del_v4_tdf(acl, sx, 0);
+  vec_foreach (acl, active->v6_acls) pfcp_add_del_v6_tdf(acl, sx, 0);
 
   node_assoc_detach_session (sx);
 
@@ -1027,7 +1027,7 @@ sx_disable_session (upf_session_t * sx, int drop_msgs)
 }
 
 void
-sx_free_session (upf_session_t * sx)
+pfcp_free_session (upf_session_t * sx)
 {
   vlib_main_t *vm = vlib_get_main ();
   upf_main_t *gtm = &upf_main;
@@ -1035,7 +1035,7 @@ sx_free_session (upf_session_t * sx)
   vlib_worker_thread_barrier_sync (vm);
 
   for (size_t i = 0; i < ARRAY_LEN (sx->rules); i++)
-    sx_free_rules (sx, i);
+    pfcp_free_rules (sx, i);
 
   clib_spinlock_free (&sx->lock);
   pool_put (gtm->sessions, sx);
@@ -1044,73 +1044,73 @@ sx_free_session (upf_session_t * sx)
 
 }
 
-#define sx_rule_vector_fns(t, REMOVE)					\
-upf_##t##_t * sx_get_##t##_by_id(struct rules *rules,			\
+#define pfcp_rule_vector_fns(t, REMOVE)					\
+upf_##t##_t * pfcp_get_##t##_by_id(struct rules *rules,			\
 				   typeof (((upf_##t##_t *)0)->id) t##_id) \
 {									\
   upf_##t##_t r = { .id = t##_id };					\
 									\
-  return vec_bsearch(&r, rules->t, sx_##t##_id_compare);		\
+  return vec_bsearch(&r, rules->t, pfcp_##t##_id_compare);		\
 }									\
 									\
-upf_##t##_t *sx_get_##t(upf_session_t *sx, int rule,		\
+upf_##t##_t *pfcp_get_##t(upf_session_t *sx, int rule,		\
 			  typeof (((upf_##t##_t *)0)->id) t##_id)	\
 {									\
-  struct rules *rules = sx_get_rules(sx, rule);				\
+  struct rules *rules = pfcp_get_rules(sx, rule);				\
   upf_##t##_t r = { .id = t##_id };					\
 									\
-  if (rule == SX_PENDING)						\
-    if (sx_make_pending_##t(sx) != 0)					\
+  if (rule == PFCP_PENDING)						\
+    if (pfcp_make_pending_##t(sx) != 0)					\
       return NULL;							\
 									\
   printf("LOOKUP t##: %u\n", t##_id);					\
-  return vec_bsearch(&r, rules->t, sx_##t##_id_compare);		\
+  return vec_bsearch(&r, rules->t, pfcp_##t##_id_compare);		\
 }									\
 									\
-int sx_sort_##t##s(struct rules *rules)					\
+int pfcp_sort_##t##s(struct rules *rules)					\
 {									\
-  vec_sort_with_function(rules->t, sx_##t##_id_compare);		\
+  vec_sort_with_function(rules->t, pfcp_##t##_id_compare);		\
   return 0;								\
 }									\
 									\
-int sx_delete_##t(upf_session_t *sx, u32 t##_id)			\
+int pfcp_delete_##t(upf_session_t *sx, u32 t##_id)			\
 {									\
-  struct rules *rules = sx_get_rules(sx, SX_PENDING);			\
+  struct rules *rules = pfcp_get_rules(sx, PFCP_PENDING);			\
   upf_##t##_t r = { .id = t##_id };					\
   upf_##t##_t *p;							\
 									\
-  if (sx_make_pending_##t(sx) != 0)					\
+  if (pfcp_make_pending_##t(sx) != 0)					\
     return -1;								\
 									\
-  if (!(p = vec_bsearch(&r, rules->t, sx_##t##_id_compare)))		\
+  if (!(p = vec_bsearch(&r, rules->t, pfcp_##t##_id_compare)))		\
     return -1;								\
 									\
   do { REMOVE; } while (0);						\
-  sx_free_##t (p);							\
+  pfcp_free_##t (p);							\
 									\
   vec_delete(rules->t, 1, p - rules->t);				\
   return 0;								\
 }
 
 /* *INDENT-OFF* */
-sx_rule_vector_fns(pdr, ({}))
-sx_rule_vector_fns(far, ({}))
-sx_rule_vector_fns(urr, ({}))
-sx_rule_vector_fns(qer, ({}))
+pfcp_rule_vector_fns(pdr, ({}))
+pfcp_rule_vector_fns(far, ({}))
+pfcp_rule_vector_fns(urr, ({}))
+pfcp_rule_vector_fns(qer, ({}))
 /* *INDENT-ON* */
 
 void
-sx_send_end_marker (upf_session_t * sx, u16 far_id)
+pfcp_send_end_marker (upf_session_t * sx, u16 far_id)
 {
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
   upf_far_t r = {.id = far_id };
   upf_main_t *gtm = &upf_main;
   send_end_marker_t *send_em;
   upf_peer_t *peer;
   upf_far_t *far;
 
-  if (!(far = vec_bsearch (&r, active->far, sx_far_id_compare)))
+  if (!(far = vec_bsearch (&r, active->far, pfcp_far_id_compare)))
     return;
 
   peer = pool_elt_at_index (gtm->peers, far->forward.peer_idx);
@@ -1158,7 +1158,7 @@ upf_acl_cmp (const void *a, const void *b)
 
 //TODO: instead of using the UE IP, we should use the DL SDF dst fields
 static void
-sx_add_del_ue_ip (const void *ip, void *si, int is_add)
+pfcp_add_del_ue_ip (const void *ip, void *si, int is_add)
 {
   const ue_ip_t * ue_ip = ip;
   upf_session_t *sx = si;
@@ -1201,7 +1201,7 @@ sx_add_del_ue_ip (const void *ip, void *si, int is_add)
 }
 
 static void
-sx_add_del_v4_teid (const void *teid, void *si, int is_add)
+pfcp_add_del_v4_teid (const void *teid, void *si, int is_add)
 {
   upf_main_t *gtm = &upf_main;
   upf_session_t *sess = si;
@@ -1220,7 +1220,7 @@ sx_add_del_v4_teid (const void *teid, void *si, int is_add)
 }
 
 static void
-sx_add_del_v6_teid (const void *teid, void *si, int is_add)
+pfcp_add_del_v6_teid (const void *teid, void *si, int is_add)
 {
   upf_main_t *gtm = &upf_main;
   upf_session_t *sess = si;
@@ -1241,7 +1241,7 @@ sx_add_del_v6_teid (const void *teid, void *si, int is_add)
 }
 
 static void
-sx_add_del_tdf (const void *tdf, void *si, int is_ip4, int is_add)
+pfcp_add_del_tdf (const void *tdf, void *si, int is_ip4, int is_add)
 {
   upf_main_t *gtm = &upf_main;
   upf_acl_t *acl = (upf_acl_t *)tdf;
@@ -1296,15 +1296,15 @@ sx_add_del_tdf (const void *tdf, void *si, int is_ip4, int is_add)
 }
 
 static void
-sx_add_del_v4_tdf (const void *tdf, void *si, int is_add)
+pfcp_add_del_v4_tdf (const void *tdf, void *si, int is_add)
 {
-  sx_add_del_tdf (tdf, si, 1 /* is_ip4 */, is_add);
+  pfcp_add_del_tdf (tdf, si, 1 /* is_ip4 */, is_add);
 }
 
 static void
-sx_add_del_v6_tdf (const void *tdf, void *si, int is_add)
+pfcp_add_del_v6_tdf (const void *tdf, void *si, int is_add)
 {
-  sx_add_del_tdf (tdf, si, 0 /* is_ip4 */, is_add);
+  pfcp_add_del_tdf (tdf, si, 0 /* is_ip4 */, is_add);
 }
 
 u8 *
@@ -1565,10 +1565,10 @@ rules_add_ue_ip(struct rules * r, fib_protocol_t fproto,
 }
 
 static int
-build_sx_rules (upf_session_t * sx)
+build_pfcp_rules (upf_session_t * sx)
 {
   upf_main_t *gtm = &upf_main;
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
   u32 idx;
 
   pending->proxy_precedence = ~0;
@@ -1673,13 +1673,13 @@ build_sx_rules (upf_session_t * sx)
 	    pending->proxy_pdr_idx = idx;
 	  }
 
-	pending->flags |= SX_ADR;
+	pending->flags |= PFCP_ADR;
       }
   }
 
   if (vec_len(pending->ue_src_ip) != 0 || vec_len(pending->ue_dst_ip) != 0 ||
       vec_len(pending->v4_acls) != 0 || vec_len(pending->v6_acls) != 0)
-    pending->flags |= SX_CLASSIFY;
+    pending->flags |= PFCP_CLASSIFY;
 
   return 0;
 }
@@ -1687,7 +1687,7 @@ build_sx_rules (upf_session_t * sx)
 static void
 build_urr_link_map (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
   u32 idx;
 
   vec_foreach_index (idx, pending->urr)
@@ -1699,7 +1699,7 @@ build_urr_link_map (upf_session_t * sx)
     {
       upf_urr_t *l;
 
-      l = sx_get_urr_by_id (pending, *id);
+      l = pfcp_get_urr_by_id (pending, *id);
       if (!l)
 	continue;
 
@@ -1709,10 +1709,10 @@ build_urr_link_map (upf_session_t * sx)
 }
 
 int
-sx_update_apply (upf_session_t * sx)
+pfcp_update_apply (upf_session_t * sx)
 {
-  struct rules *pending = sx_get_rules (sx, SX_PENDING);
-  struct rules *active = sx_get_rules (sx, SX_ACTIVE);
+  struct rules *pending = pfcp_get_rules (sx, PFCP_PENDING);
+  struct rules *active = pfcp_get_rules (sx, PFCP_ACTIVE);
   int pending_pdr, pending_far, pending_urr, pending_qer;
   pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = vlib_get_main ();
@@ -1733,7 +1733,7 @@ sx_update_apply (upf_session_t * sx)
 
   if (pending_pdr)
     {
-      if (build_sx_rules (sx) != 0)
+      if (build_pfcp_rules (sx) != 0)
 	{
 	  vlib_worker_thread_barrier_release (vm);
 	  return -1;
@@ -1814,15 +1814,15 @@ sx_update_apply (upf_session_t * sx)
 
   if (pending_pdr)
     {
-      sx->flags |= SX_UPDATING;
+      sx->flags |= PFCP_UPDATING;
 
       /* update UE addresses and TEIDs */
       vec_diff (pending->ue_dst_ip, active->ue_dst_ip, ip46_address_fib_cmp,
-		sx_add_del_ue_ip, sx);
+		pfcp_add_del_ue_ip, sx);
       vec_diff (pending->v4_teid, active->v4_teid, v4_teid_cmp,
-		sx_add_del_v4_teid, sx);
+		pfcp_add_del_v4_teid, sx);
       vec_diff (pending->v6_teid, active->v6_teid, v6_teid_cmp,
-		sx_add_del_v6_teid, sx);
+		pfcp_add_del_v6_teid, sx);
 
       gtp_debug("v4 TEIDs %u\n", pending->v4_teid);
       gtp_debug("v6 TEIDs %u\n", pending->v6_teid);
@@ -1831,21 +1831,21 @@ sx_update_apply (upf_session_t * sx)
       gtp_debug("v6 ACLs %u\n", pending->v6_acls);
 
       vec_diff (pending->ue_src_ip, active->ue_src_ip, ip46_address_fib_cmp,
-		sx_add_del_ue_ip, sx);
+		pfcp_add_del_ue_ip, sx);
 
       /* has PDRs but no TEIDs or UE IPs, add to global wildcard TDF table */
       vec_diff (pending->v4_acls, active->v4_acls, upf_acl_cmp,
-		sx_add_del_v4_tdf, sx);
+		pfcp_add_del_v4_tdf, sx);
       vec_diff (pending->v6_acls, active->v6_acls, upf_acl_cmp,
-		sx_add_del_v6_tdf, sx);
+		pfcp_add_del_v6_tdf, sx);
     }
 
   /* flip the switch */
-  sx->active ^= SX_PENDING;
-  sx->flags &= ~SX_UPDATING;
+  sx->active ^= PFCP_PENDING;
+  sx->flags &= ~PFCP_UPDATING;
 
-  pending = sx_get_rules (sx, SX_PENDING);
-  active = sx_get_rules (sx, SX_ACTIVE);
+  pending = pfcp_get_rules (sx, PFCP_PENDING);
+  active = pfcp_get_rules (sx, PFCP_ACTIVE);
 
   if (active->inactivity_timer.handle != pending->inactivity_timer.handle)
     upf_pfcp_session_stop_up_inactivity_timer(&pending->inactivity_timer);
@@ -1876,7 +1876,7 @@ sx_update_apply (upf_session_t * sx)
 	int is_ip4;
 	u32 bi;
 
-	if (!(far = vec_bsearch (&r, pending->far, sx_far_id_compare)))
+	if (!(far = vec_bsearch (&r, pending->far, pfcp_far_id_compare)))
 	  continue;
 
 	is_ip4 =
@@ -1893,22 +1893,22 @@ sx_update_apply (upf_session_t * sx)
 
   vec_foreach (urr, active->urr)
   {
-    if (urr->update_flags & SX_URR_UPDATE_MEASUREMENT_PERIOD)
+    if (urr->update_flags & PFCP_URR_UPDATE_MEASUREMENT_PERIOD)
       {
 	upf_pfcp_session_start_stop_urr_time
 	  (si, &urr->measurement_period,
 	   ! !(urr->triggers & REPORTING_TRIGGER_PERIODIC_REPORTING));
       }
 
-    if ((urr->methods & SX_URR_TIME))
+    if ((urr->methods & PFCP_URR_TIME))
       {
-	if (urr->update_flags & SX_URR_UPDATE_TIME_THRESHOLD)
+	if (urr->update_flags & PFCP_URR_UPDATE_TIME_THRESHOLD)
 	  {
 	    upf_pfcp_session_start_stop_urr_time
 	      (si, &urr->time_threshold,
 	       ! !(urr->triggers & REPORTING_TRIGGER_TIME_THRESHOLD));
 	  }
-	if (urr->update_flags & SX_URR_UPDATE_TIME_QUOTA)
+	if (urr->update_flags & PFCP_URR_UPDATE_TIME_QUOTA)
 	  {
 	    urr->time_quota.base =
 	      (urr->time_threshold.base !=
@@ -1932,7 +1932,7 @@ sx_update_apply (upf_session_t * sx)
        * new URR was initialized with zero, simply add the old values */
       vec_foreach (urr, pending->urr)
       {
-	upf_urr_t *new_urr = sx_get_urr_by_id (active, urr->id);
+	upf_urr_t *new_urr = pfcp_get_urr_by_id (active, urr->id);
 
 	if (!new_urr)
 	  {
@@ -1950,7 +1950,7 @@ sx_update_apply (upf_session_t * sx)
 	urr->traffic = NULL;
 	urr->traffic_by_ue = NULL;
 
-	if ((new_urr->methods & SX_URR_VOLUME))
+	if ((new_urr->methods & PFCP_URR_VOLUME))
 	  {
 	    urr_volume_t *old_volume = &urr->volume;
 	    urr_volume_t *new_volume = &new_urr->volume;
@@ -1967,7 +1967,7 @@ sx_update_apply (upf_session_t * sx)
 	    combine_volume (new_volume, old_volume, packets);
 	    combine_volume (new_volume, old_volume, bytes);
 
-	    if (new_urr->update_flags & SX_URR_UPDATE_VOLUME_QUOTA)
+	    if (new_urr->update_flags & PFCP_URR_UPDATE_VOLUME_QUOTA)
 	      new_volume->measure.consumed = new_volume->measure.bytes;
 	    else
 	      combine_volume (new_volume, old_volume, consumed);
@@ -1988,19 +1988,19 @@ sx_update_apply (upf_session_t * sx)
 }
 
 void
-sx_update_finish (upf_session_t * sx)
+pfcp_update_finish (upf_session_t * sx)
 {
-  sx_free_rules (sx, SX_PENDING);
+  pfcp_free_rules (sx, PFCP_PENDING);
 }
 
-/******************** Sx Session functions **********************/
+/******************** PFCP Session functions **********************/
 
 /**
  * @brief Function to return session info entry address.
  *
  */
 upf_session_t *
-sx_lookup (uint64_t sess_id)
+pfcp_lookup (uint64_t sess_id)
 {
   upf_main_t *gtm = &upf_main;
   uword *p;
@@ -2056,7 +2056,7 @@ process_urrs (vlib_main_t * vm, upf_session_t * sess,
 
   vec_foreach (urr_id, pdr->urr_ids)
   {
-    upf_urr_t *urr = sx_get_urr_by_id (active, *urr_id);
+    upf_urr_t *urr = pfcp_get_urr_by_id (active, *urr_id);
     int r = URR_OK;
 
     if (!urr)
@@ -2091,7 +2091,7 @@ process_urrs (vlib_main_t * vm, upf_session_t * sess,
       urr->time_of_first_packet = now;
     urr->time_of_last_packet = now;
 
-    if ((urr->methods & SX_URR_VOLUME))
+    if ((urr->methods & PFCP_URR_VOLUME))
       {
 	uword len = vlib_buffer_length_in_chain (vm, b);
 
@@ -2114,7 +2114,7 @@ process_urrs (vlib_main_t * vm, upf_session_t * sess,
 	  urr->status |= URR_OVER_QUOTA;
       }
 
-    if ((urr->methods & SX_URR_EVENT) &&
+    if ((urr->methods & PFCP_URR_EVENT) &&
 	(urr->triggers & REPORTING_TRIGGER_START_OF_TRAFFIC))
       {
 	ip4_header_t * iph = (ip4_header_t *) (b->data + vnet_buffer (b)->l3_hdr_offset);
@@ -2242,14 +2242,14 @@ process_qers (vlib_main_t * vm, upf_session_t * sess,
 
   vec_foreach (qer_id, pdr->qer_ids)
   {
-    upf_qer_t *qer = sx_get_qer_by_id (r, *qer_id);
+    upf_qer_t *qer = pfcp_get_qer_by_id (r, *qer_id);
     upf_qer_policer_t *pol;
     u32 col __attribute__ ((unused));
 
     if (!qer)
       continue;
 
-    if (!(qer->flags & SX_QER_MBR))
+    if (!(qer->flags & PFCP_QER_MBR))
       continue;
 
     if (qer->gate_status[direction])
@@ -2436,7 +2436,7 @@ format_pfcp_session (u8 * s, va_list * args)
   upf_session_t *sx = va_arg (*args, upf_session_t *);
   int rule = va_arg (*args, int);
   int debug = va_arg (*args, int);
-  struct rules *rules = sx_get_rules (sx, rule);
+  struct rules *rules = pfcp_get_rules (sx, rule);
   upf_main_t *gtm = &upf_main;
   upf_pdr_t *pdr;
   upf_far_t *far;
@@ -2454,7 +2454,7 @@ format_pfcp_session (u8 * s, va_list * args)
     s = format (s, "  SIdx: %u\n  Pointer: %p\n  PDR: %p\n  FAR: %p\n",
 		sx - gtm->sessions, sx, rules->pdr, rules->far);
 
-  s = format (s, "  Sx Association: %u\n",
+  s = format (s, "  PFCP Association: %u\n",
 	      sx->assoc.node);
   if (debug)
     s = format (s, "                  (prev:%u,next:%u)\n",
@@ -2591,7 +2591,7 @@ format_pfcp_session (u8 * s, va_list * args)
 		urr->usage_before_monitoring_time.time_of_first_packet,
 		format_vlib_time, gtm->vlib_main,
 		urr->usage_before_monitoring_time.time_of_last_packet);
-    if (urr->methods & SX_URR_VOLUME)
+    if (urr->methods & PFCP_URR_VOLUME)
       {
 	urr_volume_t *v = &urr->volume;
 
@@ -2614,7 +2614,7 @@ format_pfcp_session (u8 * s, va_list * args)
 		    format_urr_time, &urr->measurement_period);
       }
 
-    if (urr->methods & SX_URR_TIME)
+    if (urr->methods & PFCP_URR_TIME)
       {
 	s = format (s, "  Time\n    Quota:     %U\n    Threshold: %U\n",
 		    format_urr_time, &urr->time_quota,
@@ -2639,7 +2639,7 @@ format_pfcp_session (u8 * s, va_list * args)
 			urr->usage_before_monitoring_time.time_of_first_packet,
 			format_vlib_time, gtm->vlib_main,
 			urr->usage_before_monitoring_time.time_of_last_packet);
-	    if (urr->methods & SX_URR_VOLUME)
+	    if (urr->methods & PFCP_URR_VOLUME)
 	      {
 		urr_measure_t *v = &urr->usage_before_monitoring_time.volume;
 
@@ -2651,7 +2651,7 @@ format_pfcp_session (u8 * s, va_list * args)
 			    v->packets.ul, v->bytes.dl, v->packets.dl,
 			    v->bytes.total, v->packets.total);
 	      }
-	    if (urr->methods & SX_URR_TIME)
+	    if (urr->methods & PFCP_URR_TIME)
 	      {
 		s = format (s, "    Start Time %U, End Time %U, %9.3f secs\n",
 			    format_time_float, 0,

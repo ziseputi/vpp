@@ -273,14 +273,14 @@ upf_adf_app_add_command_fn (vlib_main_t * vm,
 	}
     }
 
-  sess = sx_lookup (up_seid);
+  sess = pfcp_lookup (up_seid);
   if (sess == NULL)
     {
       error = clib_error_return (0, "could not find a session");
       goto done;
     }
 
-  pdr = sx_get_pdr (sess, SX_ACTIVE, pdr_id);
+  pdr = pfcp_get_pdr (sess, PFCP_ACTIVE, pdr_id);
   if (pdr == NULL)
     {
       error = clib_error_return (0, "could not find a pdr");

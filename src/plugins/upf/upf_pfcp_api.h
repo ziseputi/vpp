@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _UPF_SX_ERL_H
-#define _UPF_SX_ERL_H
+#ifndef _UPF_PFCP_ERL_H
+#define _UPF_PFCP_ERL_H
 
 #include <vppinfra/types.h>
 #include <vppinfra/vec.h>
@@ -90,7 +90,7 @@ upf_usage_report_build (upf_session_t * sx,
 			upf_usage_report_t *report,
 			pfcp_usage_report_t ** usage_report);
 
-#endif /* _UPF_SX_ERL_H */
+#endif /* _UPF_PFCP_ERL_H */
 
 /*
  * fd.io coding-style-patch-verification: ON

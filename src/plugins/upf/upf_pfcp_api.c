@@ -424,7 +424,7 @@ handle_heartbeat_response (pfcp_msg_t * req, pfcp_simple_response_t * msg)
   n = pool_elt_at_index (gtm->nodes, req->node);
 
   if (msg->response.recovery_time_stamp > n->recovery_time_stamp)
-    sx_release_association (n);
+    pfcp_release_association (n);
   else if (msg->response.recovery_time_stamp < n->recovery_time_stamp)
     {
       /* 3GPP TS 23.007, Sect. 19A:
@@ -432,7 +432,7 @@ handle_heartbeat_response (pfcp_msg_t * req, pfcp_simple_response_t * msg)
        * If the value of a Recovery Time Stamp previously stored for a peer is larger
        * than the Recovery Time Stamp value received in the Heartbeat Response message
        * or the PFCP message, this indicates a possible race condition (newer message
-       * arriving before the older one). The received Sx node related message and the
+       * arriving before the older one). The received PFCP node related message and the
        * received new Recovery Time Stamp value shall be discarded and an error may
        * be logged.
        */
@@ -484,7 +484,7 @@ handle_association_setup_request (pfcp_msg_t * req,
   SET_BIT (resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_TP_BUILD_ID);
   vec_add (resp.tp_build_id, vpe_version_string, strlen (vpe_version_string));
 
-  n = sx_get_association (&msg->request.node_id);
+  n = pfcp_get_association (&msg->request.node_id);
   if (n)
     {
       /* 3GPP TS 23.007, Sect. 19A:
@@ -502,11 +502,11 @@ handle_association_setup_request (pfcp_msg_t * req,
        * PFCP Association Setup Response message.
        *
        */
-      sx_release_association (n);
+      pfcp_release_association (n);
     }
 
   n =
-    sx_new_association (req->fib_index, &req->lcl.address, &req->rmt.address,
+    pfcp_new_association (req->fib_index, &req->lcl.address, &req->rmt.address,
 			&msg->request.node_id);
   n->recovery_time_stamp = msg->recovery_time_stamp;
 
@@ -793,13 +793,13 @@ handle_create_pdr (upf_session_t * sx, pfcp_create_pdr_t * create_pdr,
   struct rules *rules;
   int r = 0;
 
-  if ((r = sx_make_pending_pdr(sx)) != 0)
+  if ((r = pfcp_make_pending_pdr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
     }
 
-  rules = sx_get_rules(sx, SX_PENDING);
+  rules = pfcp_get_rules(sx, PFCP_PENDING);
   vec_alloc(rules->pdr, vec_len (create_pdr));
 
   vec_foreach (pdr, create_pdr)
@@ -940,7 +940,7 @@ handle_create_pdr (upf_session_t * sx, pfcp_create_pdr_t * create_pdr,
     // CREATE_PDR_ACTIVATE_PREDEFINED_RULES
   }
 
-  sx_sort_pdrs (rules);
+  pfcp_sort_pdrs (rules);
 
   if (r != 0)
     {
@@ -964,7 +964,7 @@ handle_update_pdr (upf_session_t * sx, pfcp_update_pdr_t * update_pdr,
   pfcp_update_pdr_t *pdr;
   int r = 0;
 
-  if ((r = sx_make_pending_pdr(sx)) != 0)
+  if ((r = pfcp_make_pending_pdr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -974,10 +974,10 @@ handle_update_pdr (upf_session_t * sx, pfcp_update_pdr_t * update_pdr,
   {
     upf_pdr_t *update;
 
-    update = sx_get_pdr (sx, SX_PENDING, pdr->pdr_id);
+    update = pfcp_get_pdr (sx, PFCP_PENDING, pdr->pdr_id);
     if (!update)
       {
-	gtp_debug ("Sx Session %" PRIu64 ", update PDR Id %d not found.\n",
+	gtp_debug ("PFCP Session %" PRIu64 ", update PDR Id %d not found.\n",
 		   sx->cp_seid, pdr->pdr_id);
 	failed_rule_id->id = pdr->pdr_id;
 	r = -1;
@@ -1123,7 +1123,7 @@ handle_remove_pdr (upf_session_t * sx, pfcp_remove_pdr_t * remove_pdr,
   pfcp_remove_pdr_t *pdr;
   int r = 0;
 
-  if ((r = sx_make_pending_pdr(sx)) != 0)
+  if ((r = pfcp_make_pending_pdr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1131,7 +1131,7 @@ handle_remove_pdr (upf_session_t * sx, pfcp_remove_pdr_t * remove_pdr,
 
   vec_foreach (pdr, remove_pdr)
   {
-    if ((r = sx_delete_pdr (sx, pdr->pdr_id)) != 0)
+    if ((r = pfcp_delete_pdr (sx, pdr->pdr_id)) != 0)
       {
 	gtp_debug ("Failed to remove PDR %d\n", pdr->pdr_id);
 	failed_rule_id->id = pdr->pdr_id;
@@ -1306,13 +1306,13 @@ handle_create_far (upf_session_t * sx, pfcp_create_far_t * create_far,
   struct rules *rules;
   int r = 0;
 
-  if ((r = sx_make_pending_far(sx)) != 0)
+  if ((r = pfcp_make_pending_far(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
     }
 
-  rules = sx_get_rules(sx, SX_PENDING);
+  rules = pfcp_get_rules(sx, PFCP_PENDING);
   vec_alloc(rules->far, vec_len (create_far));
 
   vec_foreach (far, create_far)
@@ -1412,7 +1412,7 @@ handle_create_far (upf_session_t * sx, pfcp_create_far_t * create_far,
       }
   }
 
-  sx_sort_fars (rules);
+  pfcp_sort_fars (rules);
 
   if (r != 0)
     {
@@ -1436,7 +1436,7 @@ handle_update_far (upf_session_t * sx, pfcp_update_far_t * update_far,
   pfcp_update_far_t *far;
   int r = 0;
 
-  if ((r = sx_make_pending_far(sx)) != 0)
+  if ((r = pfcp_make_pending_far(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1446,10 +1446,10 @@ handle_update_far (upf_session_t * sx, pfcp_update_far_t * update_far,
   {
     upf_far_t *update;
 
-    update = sx_get_far (sx, SX_PENDING, far->far_id);
+    update = pfcp_get_far (sx, PFCP_PENDING, far->far_id);
     if (!update)
       {
-	gtp_debug ("Sx Session %" PRIu64 ", update FAR Id %d not found.\n",
+	gtp_debug ("PFCP Session %" PRIu64 ", update FAR Id %d not found.\n",
 		   sx->cp_seid, far->far_id);
 	failed_rule_id->id = far->far_id;
 	r = -1;
@@ -1510,10 +1510,10 @@ handle_update_far (upf_session_t * sx, pfcp_update_far_t * update_far,
 	    int is_ip4 = ! !(ohc->description & OUTER_HEADER_CREATION_ANY_IP4);
 
 	    if (ISSET_BIT (far->update_forwarding_parameters.grp.fields,
-			   UPDATE_FORWARDING_PARAMETERS_SXSMREQ_FLAGS) &&
+			   UPDATE_FORWARDING_PARAMETERS_PFCPSMREQ_FLAGS) &&
 		far->update_forwarding_parameters.
-		sxsmreq_flags & SXSMREQ_SNDEM)
-	      sx_send_end_marker (sx, far->far_id);
+		pfcpsmreq_flags & PFCPSMREQ_SNDEM)
+	      pfcp_send_end_marker (sx, far->far_id);
 
 	    update->forward.flags |= FAR_F_OUTER_HEADER_CREATION;
 	    update->forward.outer_header_creation = *ohc;
@@ -1575,7 +1575,7 @@ handle_remove_far (upf_session_t * sx, pfcp_remove_far_t * remove_far,
   pfcp_remove_far_t *far;
   int r = 0;
 
-  if ((r = sx_make_pending_far(sx)) != 0)
+  if ((r = pfcp_make_pending_far(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1583,7 +1583,7 @@ handle_remove_far (upf_session_t * sx, pfcp_remove_far_t * remove_far,
 
   vec_foreach (far, remove_far)
   {
-    if ((r = sx_delete_far (sx, far->far_id)) != 0)
+    if ((r = pfcp_delete_far (sx, far->far_id)) != 0)
       {
 	gtp_debug ("Failed to add FAR %d\n", far->far_id);
 	failed_rule_id->id = far->far_id;
@@ -1614,13 +1614,13 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
   struct rules *rules;
   int r = 0;
 
-  if ((r = sx_make_pending_urr(sx)) != 0)
+  if ((r = pfcp_make_pending_urr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
     }
 
-  rules = sx_get_rules(sx, SX_PENDING);
+  rules = pfcp_get_rules(sx, PFCP_PENDING);
   vec_alloc(rules->urr, vec_len (create_urr));
 
   vec_foreach (urr, create_urr)
@@ -1646,7 +1646,7 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
 
     if (ISSET_BIT (urr->grp.fields, CREATE_URR_MEASUREMENT_PERIOD))
       {
-	create->update_flags |= SX_URR_UPDATE_MEASUREMENT_PERIOD;
+	create->update_flags |= PFCP_URR_UPDATE_MEASUREMENT_PERIOD;
 	create->measurement_period.period = urr->measurement_period;
 	create->measurement_period.base = now;
       }
@@ -1667,13 +1667,13 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
 
     if (ISSET_BIT (urr->grp.fields, CREATE_URR_TIME_THRESHOLD))
       {
-	create->update_flags |= SX_URR_UPDATE_TIME_THRESHOLD;
+	create->update_flags |= PFCP_URR_UPDATE_TIME_THRESHOLD;
 	create->time_threshold.period = urr->time_threshold;
 	create->time_threshold.base = now;
       }
     if (ISSET_BIT (urr->grp.fields, CREATE_URR_TIME_QUOTA))
       {
-	create->update_flags |= SX_URR_UPDATE_TIME_QUOTA;
+	create->update_flags |= PFCP_URR_UPDATE_TIME_QUOTA;
 	create->time_quota.period = urr->time_quota;
 	create->time_quota.base = now;
       }
@@ -1685,7 +1685,7 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
       {
 	f64 secs;
 
-	create->update_flags |= SX_URR_UPDATE_MONITORING_TIME;
+	create->update_flags |= PFCP_URR_UPDATE_MONITORING_TIME;
 	create->monitoring_time.unix_time =
 	  urr->monitoring_time + modf(sx->unix_time_start, &secs);
 	create->monitoring_time.vlib_time =
@@ -1705,7 +1705,7 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
     //TODO: time_quota_mechanism;
   }
 
-  sx_sort_urrs (rules);
+  pfcp_sort_urrs (rules);
 
   if (r != 0)
     {
@@ -1728,7 +1728,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
   pfcp_update_urr_t *urr;
   int r = 0;
 
-  if ((r = sx_make_pending_urr(sx)) != 0)
+  if ((r = pfcp_make_pending_urr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1738,10 +1738,10 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
   {
     upf_urr_t *update;
 
-    update = sx_get_urr (sx, SX_PENDING, urr->urr_id);
+    update = pfcp_get_urr (sx, PFCP_PENDING, urr->urr_id);
     if (!update)
       {
-	gtp_debug ("Sx Session %" PRIu64 ", update URR Id %d not found.\n",
+	gtp_debug ("PFCP Session %" PRIu64 ", update URR Id %d not found.\n",
 		   sx->cp_seid, urr->urr_id);
 	failed_rule_id->id = urr->urr_id;
 	r = -1;
@@ -1755,7 +1755,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
 
     if (ISSET_BIT (urr->grp.fields, UPDATE_URR_MEASUREMENT_PERIOD))
       {
-	update->update_flags |= SX_URR_UPDATE_MEASUREMENT_PERIOD;
+	update->update_flags |= PFCP_URR_UPDATE_MEASUREMENT_PERIOD;
 	update->measurement_period.period = urr->measurement_period;
 
 	/* TODO:
@@ -1778,7 +1778,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
       }
     if (ISSET_BIT (urr->grp.fields, UPDATE_URR_VOLUME_QUOTA))
       {
-	update->update_flags |= SX_URR_UPDATE_VOLUME_QUOTA;
+	update->update_flags |= PFCP_URR_UPDATE_VOLUME_QUOTA;
 	memset (&update->volume.measure.consumed, 0,
 		sizeof (update->volume.measure.consumed));
 	update->volume.quota.ul = urr->volume_quota.ul;
@@ -1788,12 +1788,12 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
 
     if (ISSET_BIT (urr->grp.fields, UPDATE_URR_TIME_THRESHOLD))
       {
-	update->update_flags |= SX_URR_UPDATE_TIME_THRESHOLD;
+	update->update_flags |= PFCP_URR_UPDATE_TIME_THRESHOLD;
 	update->time_threshold.period = urr->time_threshold;
       }
     if (ISSET_BIT (urr->grp.fields, UPDATE_URR_TIME_QUOTA))
       {
-	update->update_flags |= SX_URR_UPDATE_TIME_QUOTA;
+	update->update_flags |= PFCP_URR_UPDATE_TIME_QUOTA;
 	update->time_quota.period = urr->time_quota;
 	update->time_quota.base = update->start_time;
       }
@@ -1805,7 +1805,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
       {
 	f64 secs;
 
-	update->update_flags |= SX_URR_UPDATE_MONITORING_TIME;
+	update->update_flags |= PFCP_URR_UPDATE_MONITORING_TIME;
 	update->monitoring_time.unix_time =
 	  urr->monitoring_time + modf(sx->unix_time_start, &secs);
 	update->monitoring_time.vlib_time =
@@ -1846,7 +1846,7 @@ handle_remove_urr (upf_session_t * sx, pfcp_remove_urr_t * remove_urr,
   pfcp_remove_urr_t *urr;
   int r = 0;
 
-  if ((r = sx_make_pending_urr(sx)) != 0)
+  if ((r = pfcp_make_pending_urr(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1854,7 +1854,7 @@ handle_remove_urr (upf_session_t * sx, pfcp_remove_urr_t * remove_urr,
 
   vec_foreach (urr, remove_urr)
   {
-    if ((r = sx_delete_urr (sx, urr->urr_id)) != 0)
+    if ((r = pfcp_delete_urr (sx, urr->urr_id)) != 0)
       {
 	gtp_debug ("Failed to add URR %d\n", urr->urr_id);
 	failed_rule_id->id = urr->urr_id;
@@ -1885,13 +1885,13 @@ handle_create_qer (upf_session_t * sx, pfcp_create_qer_t * create_qer,
   struct rules *rules;
   int r = 0;
 
-  if ((r = sx_make_pending_qer(sx)) != 0)
+  if ((r = pfcp_make_pending_qer(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
     }
 
-  rules = sx_get_rules(sx, SX_PENDING);
+  rules = pfcp_get_rules(sx, PFCP_PENDING);
   vec_alloc(rules->qer, vec_len (create_qer));
 
   vec_foreach (qer, create_qer)
@@ -1912,7 +1912,7 @@ handle_create_qer (upf_session_t * sx, pfcp_create_qer_t * create_qer,
 
     if (ISSET_BIT (qer->grp.fields, CREATE_QER_MBR))
       {
-	create->flags |= SX_QER_MBR;
+	create->flags |= PFCP_QER_MBR;
 	create->mbr = qer->mbr;
       }
 
@@ -1923,7 +1923,7 @@ handle_create_qer (upf_session_t * sx, pfcp_create_qer_t * create_qer,
     //TODO: reflective_qos;
   }
 
-  sx_sort_qers (rules);
+  pfcp_sort_qers (rules);
 
   if (r != 0)
     {
@@ -1946,7 +1946,7 @@ handle_update_qer (upf_session_t * sx, pfcp_update_qer_t * update_qer,
   pfcp_update_qer_t *qer;
   int r = 0;
 
-  if ((r = sx_make_pending_qer(sx)) != 0)
+  if ((r = pfcp_make_pending_qer(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -1956,10 +1956,10 @@ handle_update_qer (upf_session_t * sx, pfcp_update_qer_t * update_qer,
   {
     upf_qer_t *update;
 
-    update = sx_get_qer (sx, SX_PENDING, qer->qer_id);
+    update = pfcp_get_qer (sx, PFCP_PENDING, qer->qer_id);
     if (!update)
       {
-	gtp_debug ("Sx Session %" PRIu64 ", update QER Id %d not found.\n",
+	gtp_debug ("PFCP Session %" PRIu64 ", update QER Id %d not found.\n",
 		   sx->cp_seid, qer->qer_id);
 	failed_rule_id->id = qer->qer_id;
 	r = -1;
@@ -1980,7 +1980,7 @@ handle_update_qer (upf_session_t * sx, pfcp_update_qer_t * update_qer,
 
     if (ISSET_BIT (qer->grp.fields, UPDATE_QER_MBR))
       {
-	update->flags |= SX_QER_MBR;
+	update->flags |= PFCP_QER_MBR;
 	update->mbr = qer->mbr;
       }
 
@@ -2011,7 +2011,7 @@ handle_remove_qer (upf_session_t * sx, pfcp_remove_qer_t * remove_qer,
   pfcp_remove_qer_t *qer;
   int r = 0;
 
-  if ((r = sx_make_pending_qer(sx)) != 0)
+  if ((r = pfcp_make_pending_qer(sx)) != 0)
     {
       response->cause = PFCP_CAUSE_NO_RESOURCES_AVAILABLE;
       return r;
@@ -2019,7 +2019,7 @@ handle_remove_qer (upf_session_t * sx, pfcp_remove_qer_t * remove_qer,
 
   vec_foreach (qer, remove_qer)
   {
-    if ((r = sx_delete_qer (sx, qer->qer_id)) != 0)
+    if ((r = pfcp_delete_qer (sx, qer->qer_id)) != 0)
       {
 	gtp_debug ("Failed to add QER %d\n", qer->qer_id);
 	failed_rule_id->id = qer->qer_id;
@@ -2320,10 +2320,10 @@ handle_session_establishment_request (pfcp_msg_t * req,
   SET_BIT (resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_CAUSE);
   resp.response.cause = PFCP_CAUSE_REQUEST_REJECTED;
 
-  assoc = sx_get_association (&msg->request.node_id);
+  assoc = pfcp_get_association (&msg->request.node_id);
   if (!assoc)
     {
-      resp.response.cause = PFCP_CAUSE_NO_ESTABLISHED_SX_ASSOCIATION;
+      resp.response.cause = PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION;
       upf_pfcp_send_response (req, msg->f_seid.seid,
 			      PFCP_SESSION_ESTABLISHMENT_RESPONSE, &resp.grp);
 
@@ -2351,12 +2351,12 @@ handle_session_establishment_request (pfcp_msg_t * req,
       ip_set (&cp_address, &msg->f_seid.ip6, 0);
     }
 
-  sess = sx_create_session (assoc, req->fib_index, &up_address,
+  sess = pfcp_create_session (assoc, req->fib_index, &up_address,
 			    msg->f_seid.seid, &cp_address);
 
   if (ISSET_BIT (msg->grp.fields, SESSION_ESTABLISHMENT_REQUEST_USER_PLANE_INACTIVITY_TIMER))
     {
-      struct rules *pending = sx_get_rules(sess, SX_PENDING);
+      struct rules *pending = pfcp_get_rules(sess, PFCP_PENDING);
 
       pending->inactivity_timer.period = msg->user_plane_inactivity_timer;
       pending->inactivity_timer.handle = ~0;
@@ -2377,12 +2377,12 @@ handle_session_establishment_request (pfcp_msg_t * req,
 			      &resp.failed_rule_id)) != 0)
     goto out_send_resp;
 
-  r = sx_update_apply (sess);
+  r = pfcp_update_apply (sess);
   gtp_debug ("Appy: %d\n", r);
 
-  sx_update_finish (sess);
+  pfcp_update_finish (sess);
 
-  gtp_debug ("%U", format_pfcp_session, sess, SX_ACTIVE, /*debug*/ 1);
+  gtp_debug ("%U", format_pfcp_session, sess, PFCP_ACTIVE, /*debug*/ 1);
 
 out_send_resp:
   if (r == 0)
@@ -2393,10 +2393,10 @@ out_send_resp:
 
   if (r != 0)
     {
-      if (sx_disable_session (sess, false) != 0)
+      if (pfcp_disable_session (sess, false) != 0)
 	clib_error ("failed to remove UPF session 0x%016" PRIx64,
 		    sess->cp_seid);
-      sx_free_session (sess);
+      pfcp_free_session (sess);
     }
 
   return r;
@@ -2429,9 +2429,9 @@ handle_session_modification_request (pfcp_msg_t * req,
   SET_BIT (resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_CAUSE);
   resp.response.cause = PFCP_CAUSE_REQUEST_REJECTED;
 
-  if (!(sess = sx_lookup (be64toh (req->hdr->session_hdr.seid))))
+  if (!(sess = pfcp_lookup (be64toh (req->hdr->session_hdr.seid))))
     {
-      gtp_debug ("Sx Session %" PRIu64 " not found.\n",
+      gtp_debug ("PFCP Session %" PRIu64 " not found.\n",
 		 be64toh (req->hdr->session_hdr.seid));
       resp.response.cause = PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND;
 
@@ -2459,11 +2459,11 @@ handle_session_modification_request (pfcp_msg_t * req,
 			 BIT (SESSION_MODIFICATION_REQUEST_UPDATE_BAR)))
     {
       /* invoke the update process only if a update is include */
-      sx_update_session (sess);
+      pfcp_update_session (sess);
 
       if (msg->grp.fields & BIT (SESSION_MODIFICATION_REQUEST_USER_PLANE_INACTIVITY_TIMER))
 	{
-	  struct rules *pending = sx_get_rules(sess, SX_PENDING);
+	  struct rules *pending = pfcp_get_rules(sess, PFCP_PENDING);
 
 	  pending->inactivity_timer.period = msg->user_plane_inactivity_timer;
 	  pending->inactivity_timer.handle = ~0;
@@ -2529,11 +2529,11 @@ handle_session_modification_request (pfcp_msg_t * req,
 				  &resp.failed_rule_id)) != 0)
 	goto out_send_resp;
 
-      if ((r = sx_update_apply (sess)) != 0)
+      if ((r = pfcp_update_apply (sess)) != 0)
 	goto out_update_finish;
     }
 
-  active = sx_get_rules (sess, SX_ACTIVE);
+  active = pfcp_get_rules (sess, PFCP_ACTIVE);
   upf_usage_report_init (&report, vec_len (active->urr));
 
   if (ISSET_BIT (msg->grp.fields, SESSION_MODIFICATION_REQUEST_QUERY_URR) &&
@@ -2545,7 +2545,7 @@ handle_session_modification_request (pfcp_msg_t * req,
       {
 	upf_urr_t *urr;
 
-	if (!(urr = sx_get_urr_by_id (active, qry->urr_id)))
+	if (!(urr = pfcp_get_urr_by_id (active, qry->urr_id)))
 	  continue;
 
 	upf_usage_report_trigger (&report, urr - active->urr,
@@ -2555,8 +2555,8 @@ handle_session_modification_request (pfcp_msg_t * req,
     }
   else
     if (ISSET_BIT
-	(msg->grp.fields, SESSION_MODIFICATION_REQUEST_SXSMREQ_FLAGS)
-	&& msg->sxsmreq_flags & SXSMREQ_QAURR)
+	(msg->grp.fields, SESSION_MODIFICATION_REQUEST_PFCPSMREQ_FLAGS)
+	&& msg->pfcpsmreq_flags & PFCPSMREQ_QAURR)
     {
       if (vec_len (active->urr) != 0)
 	{
@@ -2569,9 +2569,9 @@ handle_session_modification_request (pfcp_msg_t * req,
   upf_usage_report_free (&report);
 
 out_update_finish:
-  sx_update_finish (sess);
+  pfcp_update_finish (sess);
 
-  gtp_debug ("%U", format_pfcp_session, sess, SX_ACTIVE, /*debug*/ 1);
+  gtp_debug ("%U", format_pfcp_session, sess, PFCP_ACTIVE, /*debug*/ 1);
 
 out_send_resp:
   if (r == 0)
@@ -2607,9 +2607,9 @@ handle_session_deletion_request (pfcp_msg_t * req,
   SET_BIT (resp.grp.fields, SESSION_DELETION_RESPONSE_CAUSE);
   resp.response.cause = PFCP_CAUSE_REQUEST_REJECTED;
 
-  if (!(sess = sx_lookup (be64toh (req->hdr->session_hdr.seid))))
+  if (!(sess = pfcp_lookup (be64toh (req->hdr->session_hdr.seid))))
     {
-      gtp_debug ("Sx Session %" PRIu64 " not found.\n",
+      gtp_debug ("PFCP Session %" PRIu64 " not found.\n",
 		 be64toh (req->hdr->session_hdr.seid));
       resp.response.cause = PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND;
 
@@ -2619,14 +2619,14 @@ handle_session_deletion_request (pfcp_msg_t * req,
 
   cp_seid = sess->cp_seid;
 
-  if ((r = sx_disable_session (sess, true)) != 0)
+  if ((r = pfcp_disable_session (sess, true)) != 0)
     {
-      gtp_debug ("Sx Session %" PRIu64 " could no be disabled.\n",
+      gtp_debug ("PFCP Session %" PRIu64 " could no be disabled.\n",
 		 be64toh (req->hdr->session_hdr.seid));
       goto out_send_resp;
     }
 
-  active = sx_get_rules (sess, SX_ACTIVE);
+  active = pfcp_get_rules (sess, PFCP_ACTIVE);
   if (vec_len (active->urr) != 0)
     {
       upf_usage_report_t report;
@@ -2642,7 +2642,7 @@ handle_session_deletion_request (pfcp_msg_t * req,
 out_send_resp:
   if (r == 0)
     {
-      sx_free_session (sess);
+      pfcp_free_session (sess);
       resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
     }
 

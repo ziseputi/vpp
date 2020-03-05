@@ -12,56 +12,56 @@
  * limitations under the License.
  */
 
-#ifndef _UPF_SX_H_
-#define _UPF_SX_H_
+#ifndef _UPF_PFCP_H_
+#define _UPF_PFCP_H_
 
 #include "upf.h"
 
 #define MAX_LEN 128
 
-upf_node_assoc_t *sx_get_association (pfcp_node_id_t * node_id);
-upf_node_assoc_t *sx_new_association (u32 fib_index,
+upf_node_assoc_t *pfcp_get_association (pfcp_node_id_t * node_id);
+upf_node_assoc_t *pfcp_new_association (u32 fib_index,
 				      ip46_address_t * lcl_addr,
 				      ip46_address_t * rmt_addr,
 				      pfcp_node_id_t * node_id);
-void sx_release_association (upf_node_assoc_t * n);
+void pfcp_release_association (upf_node_assoc_t * n);
 
-upf_session_t *sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
+upf_session_t *pfcp_create_session (upf_node_assoc_t * assoc, int pfcp_fib_index,
 				  const ip46_address_t * up_address,
 				  uint64_t cp_seid,
 				  const ip46_address_t * cp_address);
-void sx_update_session (upf_session_t * sx);
-int sx_disable_session (upf_session_t * sx, int drop_msgs);
-void sx_free_session (upf_session_t * sx);
+void pfcp_update_session (upf_session_t * sx);
+int pfcp_disable_session (upf_session_t * sx, int drop_msgs);
+void pfcp_free_session (upf_session_t * sx);
 
-#define sx_rule_vector_fns(t)						\
-upf_##t##_t * sx_get_##t##_by_id(struct rules *,			\
+#define pfcp_rule_vector_fns(t)						\
+upf_##t##_t * pfcp_get_##t##_by_id(struct rules *,			\
 				   typeof (((upf_##t##_t *)0)->id) t##_id);	\
-upf_##t##_t *sx_get_##t(upf_session_t *sx, int rule,			\
+upf_##t##_t *pfcp_get_##t(upf_session_t *sx, int rule,			\
 			  typeof (((upf_##t##_t *)0)->id) t##_id);	\
-int sx_create_##t(upf_session_t *sx, upf_##t##_t *t);			\
-int sx_make_pending_##t(upf_session_t *sx);				\
-int sx_sort_##t##s(struct rules *rules);				\
-int sx_delete_##t(upf_session_t *sx, u32 t##_id);			\
+int pfcp_create_##t(upf_session_t *sx, upf_##t##_t *t);			\
+int pfcp_make_pending_##t(upf_session_t *sx);				\
+int pfcp_sort_##t##s(struct rules *rules);				\
+int pfcp_delete_##t(upf_session_t *sx, u32 t##_id);			\
 
 /* *INDENT-OFF* */
-sx_rule_vector_fns (pdr)
-sx_rule_vector_fns (far)
-sx_rule_vector_fns (urr)
-sx_rule_vector_fns (qer)
+pfcp_rule_vector_fns (pdr)
+pfcp_rule_vector_fns (far)
+pfcp_rule_vector_fns (urr)
+pfcp_rule_vector_fns (qer)
 /* *INDENT-ON* */
 
-#undef sx_rule_vector_fns
+#undef pfcp_rule_vector_fns
 
-void sx_send_end_marker (upf_session_t * sx, u16 far_id);
+void pfcp_send_end_marker (upf_session_t * sx, u16 far_id);
 
-int sx_update_apply (upf_session_t * sx);
-void sx_update_finish (upf_session_t * sx);
+int pfcp_update_apply (upf_session_t * sx);
+void pfcp_update_finish (upf_session_t * sx);
 
-upf_session_t *sx_lookup (uint64_t sess_id);
+upf_session_t *pfcp_lookup (uint64_t sess_id);
 
 static inline struct rules *
-sx_get_rules (upf_session_t * sx, int rules)
+pfcp_get_rules (upf_session_t * sx, int rules)
 {
   return &sx->rules[sx->active ^ rules];
 }
@@ -124,7 +124,7 @@ upf_nwi_fib_index (fib_protocol_t proto, u32 nwi_index)
     return ~0;
 }
 
-#endif /* _UPF_SX_H_ */
+#endif /* _UPF_PFCP_H_ */
 
 /*
  * fd.io coding-style-patch-verification: ON

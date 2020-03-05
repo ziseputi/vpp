@@ -1636,28 +1636,28 @@ encode_dl_buffering_suggested_packet_count (void *p, u8 ** vec)
 }
 
 static u8 *
-format_sxsmreq_flags (u8 * s, va_list * args)
+format_pfcpsmreq_flags (u8 * s, va_list * args)
 {
-  pfcp_sxsmreq_flags_t *v = va_arg (*args, pfcp_sxsmreq_flags_t *);
+  pfcp_pfcpsmreq_flags_t *v = va_arg (*args, pfcp_pfcpsmreq_flags_t *);
 
   return format (s, "DROBU:%d,SNDEM:%d,QUARR:%d",
-		 ! !(*v & SXSMREQ_DROBU), ! !(*v & SXSMREQ_SNDEM),
-		 ! !(*v & SXSMREQ_QAURR));
+		 ! !(*v & PFCPSMREQ_DROBU), ! !(*v & PFCPSMREQ_SNDEM),
+		 ! !(*v & PFCPSMREQ_QAURR));
 }
 
-#define decode_sxsmreq_flags decode_u8_ie
-#define encode_sxsmreq_flags encode_u8_ie
+#define decode_pfcpsmreq_flags decode_u8_ie
+#define encode_pfcpsmreq_flags encode_u8_ie
 
 static u8 *
-format_sxsrrsp_flags (u8 * s, va_list * args)
+format_pfcpsrrsp_flags (u8 * s, va_list * args)
 {
-  pfcp_sxsrrsp_flags_t *v = va_arg (*args, pfcp_sxsrrsp_flags_t *);
+  pfcp_pfcpsrrsp_flags_t *v = va_arg (*args, pfcp_pfcpsrrsp_flags_t *);
 
-  return format (s, "DROBU:%d", ! !(*v & SXSRRSP_DROBU));
+  return format (s, "DROBU:%d", ! !(*v & PFCPSRRSP_DROBU));
 }
 
-#define decode_sxsrrsp_flags decode_u8_ie
-#define encode_sxsrrsp_flags encode_u8_ie
+#define decode_pfcpsrrsp_flags decode_u8_ie
+#define encode_pfcpsrrsp_flags encode_u8_ie
 
 #define format_sequence_number format_u32_ie
 #define decode_sequence_number decode_u32_ie
@@ -3258,33 +3258,33 @@ encode_oci_flags (void *p, u8 ** vec)
 }
 
 static u8 *
-format_sx_association_release_request (u8 * s, va_list * args)
+format_pfcp_association_release_request (u8 * s, va_list * args)
 {
-  pfcp_sx_association_release_request_t *v =
-    va_arg (*args, pfcp_sx_association_release_request_t *);
+  pfcp_pfcp_association_release_request_t *v =
+    va_arg (*args, pfcp_pfcp_association_release_request_t *);
 
   return format (s, "SARR:%d,URSS:%d",
-		 ! !(v->flags & F_SX_ASSOCIATION_RELEASE_REQUEST_SARR),
-		 ! !(v->flags & F_SX_ASSOCIATION_RELEASE_REQUEST_URSS));
+		 ! !(v->flags & F_PFCP_ASSOCIATION_RELEASE_REQUEST_SARR),
+		 ! !(v->flags & F_PFCP_ASSOCIATION_RELEASE_REQUEST_URSS));
 }
 
 static int
-decode_sx_association_release_request (u8 * data, u16 length, void *p)
+decode_pfcp_association_release_request (u8 * data, u16 length, void *p)
 {
-  pfcp_sx_association_release_request_t *v = p;
+  pfcp_pfcp_association_release_request_t *v = p;
 
   if (length < 1)
     return PFCP_CAUSE_INVALID_LENGTH;
 
-  v->flags = get_u8 (data) & F_SX_ASSOCIATION_RELEASE_REQUEST_MASK;
+  v->flags = get_u8 (data) & F_PFCP_ASSOCIATION_RELEASE_REQUEST_MASK;
 
   return 0;
 }
 
 static int
-encode_sx_association_release_request (void *p, u8 ** vec)
+encode_pfcp_association_release_request (void *p, u8 ** vec)
 {
-  pfcp_sx_association_release_request_t *v = p;
+  pfcp_pfcp_association_release_request_t *v = p;
 
   put_u8 (*vec, v->flags);
 
@@ -5069,9 +5069,9 @@ static struct pfcp_group_ie_def pfcp_update_forwarding_parameters_group[] =
       .type = PFCP_IE_HEADER_ENRICHMENT,
       .offset = offsetof(pfcp_update_forwarding_parameters_t, header_enrichment)
     },
-    [UPDATE_FORWARDING_PARAMETERS_SXSMREQ_FLAGS] = {
-      .type = PFCP_IE_SXSMREQ_FLAGS,
-      .offset = offsetof(pfcp_update_forwarding_parameters_t, sxsmreq_flags)
+    [UPDATE_FORWARDING_PARAMETERS_PFCPSMREQ_FLAGS] = {
+      .type = PFCP_IE_PFCPSMREQ_FLAGS,
+      .offset = offsetof(pfcp_update_forwarding_parameters_t, pfcpsmreq_flags)
     },
     [UPDATE_FORWARDING_PARAMETERS_LINKED_TRAFFIC_ENDPOINT_ID] = {
       .type = PFCP_IE_TRAFFIC_ENDPOINT_ID,
@@ -6146,8 +6146,8 @@ static struct pfcp_ie_def tgpp_specs[] =
     SIMPLE_IE(PFCP_IE_DL_BUFFERING_DURATION, dl_buffering_duration, "DL Buffering Duration"),
     SIMPLE_IE(PFCP_IE_DL_BUFFERING_SUGGESTED_PACKET_COUNT, dl_buffering_suggested_packet_count,
 	      "DL Buffering Suggested Packet Count"),
-    SIMPLE_IE(PFCP_IE_SXSMREQ_FLAGS, sxsmreq_flags, "SxSMReq-Flags"),
-    SIMPLE_IE(PFCP_IE_SXSRRSP_FLAGS, sxsrrsp_flags, "SxSRRsp-Flags"),
+    SIMPLE_IE(PFCP_IE_PFCPSMREQ_FLAGS, pfcpsmreq_flags, "PFCPSMReq-Flags"),
+    SIMPLE_IE(PFCP_IE_PFCPSRRSP_FLAGS, pfcpsrrsp_flags, "PFCPSRRsp-Flags"),
 
 
     [PFCP_IE_LOAD_CONTROL_INFORMATION] =
@@ -6335,8 +6335,8 @@ static struct pfcp_ie_def tgpp_specs[] =
     SIMPLE_IE(PFCP_IE_FAR_ID, far_id, "FAR ID"),
     SIMPLE_IE(PFCP_IE_QER_ID, qer_id, "QER ID"),
     SIMPLE_IE(PFCP_IE_OCI_FLAGS, oci_flags, "OCI Flags"),
-    SIMPLE_IE(PFCP_IE_SX_ASSOCIATION_RELEASE_REQUEST, sx_association_release_request,
-	      "Sx Association Release Request"),
+    SIMPLE_IE(PFCP_IE_PFCP_ASSOCIATION_RELEASE_REQUEST, pfcp_association_release_request,
+	      "PFCP Association Release Request"),
     SIMPLE_IE(PFCP_IE_GRACEFUL_RELEASE_PERIOD, graceful_release_period,
 	      "Graceful Release Period"),
     SIMPLE_IE(PFCP_IE_PDN_TYPE, pdn_type, "PDN Type"),
@@ -6694,9 +6694,9 @@ static struct pfcp_group_ie_def pfcp_association_update_request_group[] =
       .type = PFCP_IE_UP_FUNCTION_FEATURES,
       .offset = offsetof(pfcp_association_update_request_t, up_function_features)
     },
-    [ASSOCIATION_UPDATE_REQUEST_SX_ASSOCIATION_RELEASE_REQUEST] = {
-      .type = PFCP_IE_SX_ASSOCIATION_RELEASE_REQUEST,
-      .offset = offsetof(pfcp_association_update_request_t, sx_association_release_request)
+    [ASSOCIATION_UPDATE_REQUEST_PFCP_ASSOCIATION_RELEASE_REQUEST] = {
+      .type = PFCP_IE_PFCP_ASSOCIATION_RELEASE_REQUEST,
+      .offset = offsetof(pfcp_association_update_request_t, pfcp_association_release_request)
     },
     [ASSOCIATION_UPDATE_REQUEST_GRACEFUL_RELEASE_PERIOD] = {
       .type = PFCP_IE_GRACEFUL_RELEASE_PERIOD,
@@ -6995,9 +6995,9 @@ static struct pfcp_group_ie_def pfcp_session_modification_request_group[] =
       .is_array = true,
       .offset = offsetof(pfcp_session_modification_request_t, update_traffic_endpoint)
     },
-    [SESSION_MODIFICATION_REQUEST_SXSMREQ_FLAGS] = {
-      .type = PFCP_IE_SXSMREQ_FLAGS,
-      .offset = offsetof(pfcp_session_modification_request_t, sxsmreq_flags)
+    [SESSION_MODIFICATION_REQUEST_PFCPSMREQ_FLAGS] = {
+      .type = PFCP_IE_PFCPSMREQ_FLAGS,
+      .offset = offsetof(pfcp_session_modification_request_t, pfcpsmreq_flags)
     },
     [SESSION_MODIFICATION_REQUEST_QUERY_URR] = {
       .type = PFCP_IE_QUERY_URR,
@@ -7158,9 +7158,9 @@ static struct pfcp_group_ie_def pfcp_session_report_response_group[] =
       .is_array = true,
       .offset = offsetof(pfcp_session_report_response_t, update_bar)
     },
-    [SESSION_REPORT_RESPONSE_SXSRRSP_FLAGS] = {
-      .type = PFCP_IE_SXSRRSP_FLAGS,
-      .offset = offsetof(pfcp_session_report_response_t, sxsrrsp_flags)
+    [SESSION_REPORT_RESPONSE_PFCPSRRSP_FLAGS] = {
+      .type = PFCP_IE_PFCPSRRSP_FLAGS,
+      .offset = offsetof(pfcp_session_report_response_t, pfcpsrrsp_flags)
     },
     [SESSION_REPORT_RESPONSE_CP_F_SEID] = {
       .type = PFCP_IE_F_SEID,

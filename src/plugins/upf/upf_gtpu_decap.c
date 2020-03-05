@@ -314,7 +314,7 @@ upf_gtpu_input (vlib_main_t * vm,
 	  upf_buffer_opaque (b0)->gtpu.teid = clib_net_to_host_u32 (gtpu0->teid);
 	  upf_buffer_opaque (b0)->gtpu.session_index = session_index0;
 	  upf_buffer_opaque (b0)->gtpu.pdr_idx =
-	    !(sx_get_rules (t0, SX_ACTIVE)->flags & SX_CLASSIFY) ? rule_index0 : ~0;
+	    !(pfcp_get_rules (t0, PFCP_ACTIVE)->flags & PFCP_CLASSIFY) ? rule_index0 : ~0;
 	  upf_buffer_opaque (b0)->gtpu.flags |=
 	    is_ip4 ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 	  upf_buffer_opaque (b0)->gtpu.flow_id = ~0;
@@ -491,7 +491,7 @@ upf_gtpu_input (vlib_main_t * vm,
 	  upf_buffer_opaque (b1)->gtpu.teid = clib_net_to_host_u32 (gtpu1->teid);
 	  upf_buffer_opaque (b1)->gtpu.session_index = session_index1;
 	  upf_buffer_opaque (b1)->gtpu.pdr_idx =
-	    !(sx_get_rules (t1, SX_ACTIVE)->flags & SX_CLASSIFY) ? rule_index1 : ~0;
+	    !(pfcp_get_rules (t1, PFCP_ACTIVE)->flags & PFCP_CLASSIFY) ? rule_index1 : ~0;
 	  upf_buffer_opaque (b1)->gtpu.flags |=
 	    is_ip4 ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 	  upf_buffer_opaque (b1)->gtpu.flow_id = ~0;
@@ -720,7 +720,7 @@ upf_gtpu_input (vlib_main_t * vm,
 	  upf_buffer_opaque (b0)->gtpu.teid = clib_net_to_host_u32 (gtpu0->teid);
 	  upf_buffer_opaque (b0)->gtpu.session_index = session_index0;
 	  upf_buffer_opaque (b0)->gtpu.pdr_idx =
-	    !(sx_get_rules (t0, SX_ACTIVE)->flags & SX_CLASSIFY) ? rule_index0 : ~0;
+	    !(pfcp_get_rules (t0, PFCP_ACTIVE)->flags & PFCP_CLASSIFY) ? rule_index0 : ~0;
 	  upf_buffer_opaque (b0)->gtpu.flags |=
 	    (is_ip4) ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 	  upf_buffer_opaque (b0)->gtpu.flow_id = ~0;

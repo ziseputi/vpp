@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _UPF_SX_SERVER_H
-#define _UPF_SX_SERVER_H
+#ifndef _UPF_PFCP_SERVER_H
+#define _UPF_PFCP_SERVER_H
 
 #include <time.h>
 #include "upf.h"
@@ -72,7 +72,7 @@ typedef struct
 
 typedef struct
 {
-  /* Sx Node Id is either IPv4, IPv6 or FQDN */
+  /* PFCP Node Id is either IPv4, IPv6 or FQDN */
   u8 *node_id;
 } pfcp_node_t;
 
@@ -112,7 +112,7 @@ extern pfcp_server_main_t pfcp_server_main;
 extern vlib_node_registration_t sx4_input_node;
 extern vlib_node_registration_t sx6_input_node;
 
-#define UDP_DST_PORT_SX 8805
+#define UDP_DST_PORT_PFCP 8805
 
 void upf_pfcp_session_stop_up_inactivity_timer(urr_time_t * t);
 void upf_pfcp_session_start_up_inactivity_timer(u32 si, f64 last, urr_time_t * t);
@@ -242,7 +242,7 @@ pfcp_msg_get_index (pfcp_server_main_t * psm, pfcp_msg_t *m )
   return m - psm->msg_pool;
 }
 
-#endif /* _UPF_SX_SERVER_H */
+#endif /* _UPF_PFCP_SERVER_H */
 
 /*
  * fd.io coding-style-patch-verification: ON

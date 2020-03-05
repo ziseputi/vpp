@@ -174,7 +174,7 @@ typedef u8 pfcp_cause_t;
 #define PFCP_CAUSE_MANDATORY_IE_INCORRECT		69
 #define PFCP_CAUSE_INVALID_FORWARDING_POLICY		70
 #define PFCP_CAUSE_INVALID_F_TEID_ALLOCATION_OPTION	71
-#define PFCP_CAUSE_NO_ESTABLISHED_SX_ASSOCIATION	72
+#define PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION	72
 #define PFCP_CAUSE_RULE_CREATION_MODIFICATION_FAILURE	73
 #define PFCP_CAUSE_PFCP_ENTITY_IN_CONGESTION		74
 #define PFCP_CAUSE_NO_RESOURCES_AVAILABLE		75
@@ -417,15 +417,15 @@ typedef pfcp_timer_ie_t pfcp_dl_buffering_duration_t;
 #define PFCP_IE_DL_BUFFERING_SUGGESTED_PACKET_COUNT	48
 typedef u16 pfcp_dl_buffering_suggested_packet_count_t;
 
-#define PFCP_IE_SXSMREQ_FLAGS				49
-typedef u8 pfcp_sxsmreq_flags_t;
-#define SXSMREQ_DROBU					BIT(0)
-#define SXSMREQ_SNDEM					BIT(1)
-#define SXSMREQ_QAURR					BIT(2)
+#define PFCP_IE_PFCPSMREQ_FLAGS				49
+typedef u8 pfcp_pfcpsmreq_flags_t;
+#define PFCPSMREQ_DROBU					BIT(0)
+#define PFCPSMREQ_SNDEM					BIT(1)
+#define PFCPSMREQ_QAURR					BIT(2)
 
-#define PFCP_IE_SXSRRSP_FLAGS				50
-typedef u8 pfcp_sxsrrsp_flags_t;
-#define SXSRRSP_DROBU					BIT(0)
+#define PFCP_IE_PFCPSRRSP_FLAGS				50
+typedef u8 pfcp_pfcpsrrsp_flags_t;
+#define PFCPSRRSP_DROBU					BIT(0)
 
 #define PFCP_IE_LOAD_CONTROL_INFORMATION		51
 
@@ -826,15 +826,15 @@ typedef struct
 #define OCI_ASSOCIATE_OCI_WITH_NODE_ID			BIT(0)
 } pfcp_oci_flags_t;
 
-#define PFCP_IE_SX_ASSOCIATION_RELEASE_REQUEST		111
+#define PFCP_IE_PFCP_ASSOCIATION_RELEASE_REQUEST	111
 typedef struct
 {
   u8 flags;
-#define F_SX_ASSOCIATION_RELEASE_REQUEST_SARR		BIT(0)
-#define F_SX_ASSOCIATION_RELEASE_REQUEST_URSS		BIT(1)
-#define F_SX_ASSOCIATION_RELEASE_REQUEST_MASK				\
-  (F_SX_ASSOCIATION_RELEASE_REQUEST_SARR | F_SX_ASSOCIATION_RELEASE_REQUEST_URSS)
-} pfcp_sx_association_release_request_t;
+#define F_PFCP_ASSOCIATION_RELEASE_REQUEST_SARR		BIT(0)
+#define F_PFCP_ASSOCIATION_RELEASE_REQUEST_URSS		BIT(1)
+#define F_PFCP_ASSOCIATION_RELEASE_REQUEST_MASK				\
+  (F_PFCP_ASSOCIATION_RELEASE_REQUEST_SARR | F_PFCP_ASSOCIATION_RELEASE_REQUEST_URSS)
+} pfcp_pfcp_association_release_request_t;
 
 #define PFCP_IE_GRACEFUL_RELEASE_PERIOD			112
 typedef u32 pfcp_graceful_release_period_t;
@@ -1453,7 +1453,7 @@ enum
   UPDATE_FORWARDING_PARAMETERS_TRANSPORT_LEVEL_MARKING,
   UPDATE_FORWARDING_PARAMETERS_FORWARDING_POLICY,
   UPDATE_FORWARDING_PARAMETERS_HEADER_ENRICHMENT,
-  UPDATE_FORWARDING_PARAMETERS_SXSMREQ_FLAGS,
+  UPDATE_FORWARDING_PARAMETERS_PFCPSMREQ_FLAGS,
   UPDATE_FORWARDING_PARAMETERS_LINKED_TRAFFIC_ENDPOINT_ID,
   UPDATE_FORWARDING_PARAMETERS_DESTINATION_INTERFACE_TYPE,
   UPDATE_FORWARDING_PARAMETERS_LAST =
@@ -1471,7 +1471,7 @@ typedef struct
   pfcp_transport_level_marking_t transport_level_marking;
   pfcp_forwarding_policy_t forwarding_policy;
   pfcp_header_enrichment_t header_enrichment;
-  pfcp_sxsmreq_flags_t sxsmreq_flags;
+  pfcp_pfcpsmreq_flags_t pfcpsmreq_flags;
   pfcp_traffic_endpoint_id_t linked_traffic_endpoint_id;
   pfcp_tgpp_interface_type_t destination_interface_type;
 } pfcp_update_forwarding_parameters_t;
@@ -1965,7 +1965,7 @@ typedef struct
   pfcp_traffic_endpoint_id_t traffic_endpoint_id;
 } pfcp_remove_traffic_endpoint_t;
 
-/* Sx Session Report IEs */
+/* PFCP Session Report IEs */
 
 enum
 {
@@ -2331,7 +2331,7 @@ enum
   ASSOCIATION_UPDATE_REQUEST_NODE_ID = PFCP_REQUEST_NODE_ID,
   ASSOCIATION_UPDATE_REQUEST_CP_FUNCTION_FEATURES,
   ASSOCIATION_UPDATE_REQUEST_UP_FUNCTION_FEATURES,
-  ASSOCIATION_UPDATE_REQUEST_SX_ASSOCIATION_RELEASE_REQUEST,
+  ASSOCIATION_UPDATE_REQUEST_PFCP_ASSOCIATION_RELEASE_REQUEST,
   ASSOCIATION_UPDATE_REQUEST_GRACEFUL_RELEASE_PERIOD,
   ASSOCIATION_UPDATE_REQUEST_USER_PLANE_IP_RESOURCE_INFORMATION,
   ASSOCIATION_UPDATE_REQUEST_PFCPAUREQ_FLAGS,
@@ -2348,7 +2348,7 @@ typedef struct
 
   pfcp_cp_function_features_t cp_function_features;
   pfcp_up_function_features_t up_function_features;
-  pfcp_sx_association_release_request_t sx_association_release_request;
+  pfcp_pfcp_association_release_request_t pfcp_association_release_request;
   pfcp_graceful_release_period_t graceful_release_period;
     pfcp_user_plane_ip_resource_information_t
     * user_plane_ip_resource_information;
@@ -2514,7 +2514,7 @@ enum
   SESSION_MODIFICATION_REQUEST_UPDATE_QER,
   SESSION_MODIFICATION_REQUEST_UPDATE_BAR,
   SESSION_MODIFICATION_REQUEST_UPDATE_TRAFFIC_ENDPOINT,
-  SESSION_MODIFICATION_REQUEST_SXSMREQ_FLAGS,
+  SESSION_MODIFICATION_REQUEST_PFCPSMREQ_FLAGS,
   SESSION_MODIFICATION_REQUEST_QUERY_URR,
   SESSION_MODIFICATION_REQUEST_FQ_CSID,
   SESSION_MODIFICATION_REQUEST_USER_PLANE_INACTIVITY_TIMER,
@@ -2550,7 +2550,7 @@ typedef struct
   pfcp_update_qer_t *update_qer;
   pfcp_update_bar_request_t *update_bar;
   pfcp_update_traffic_endpoint_t *update_traffic_endpoint;
-  pfcp_sxsmreq_flags_t sxsmreq_flags;
+  pfcp_pfcpsmreq_flags_t pfcpsmreq_flags;
   pfcp_query_urr_t *query_urr;
   pfcp_fq_csid_t *fq_csid;
   pfcp_user_plane_inactivity_timer_t user_plane_inactivity_timer;
@@ -2650,7 +2650,7 @@ enum
   SESSION_REPORT_RESPONSE_CAUSE = PFCP_RESPONSE_CAUSE,
   SESSION_REPORT_RESPONSE_OFFENDING_IE = PFCP_RESPONSE_OFFENDING_IE,
   SESSION_REPORT_RESPONSE_UPDATE_BAR,
-  SESSION_REPORT_RESPONSE_SXSRRSP_FLAGS,
+  SESSION_REPORT_RESPONSE_PFCPSRRSP_FLAGS,
   SESSION_REPORT_RESPONSE_CP_F_SEID,
   SESSION_REPORT_RESPONSE_N4_u_F_TEID,
   SESSION_REPORT_RESPONSE_LAST = SESSION_REPORT_RESPONSE_N4_u_F_TEID,
@@ -2662,7 +2662,7 @@ typedef struct
   struct pfcp_response response;
 
   pfcp_update_bar_response_t *update_bar;
-  pfcp_sxsrrsp_flags_t sxsrrsp_flags;
+  pfcp_pfcpsrrsp_flags_t pfcpsrrsp_flags;
   pfcp_f_seid_t cp_f_seid;
   pfcp_f_teid_t n4_u_f_teid;
 } pfcp_session_report_response_t;

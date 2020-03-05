@@ -350,7 +350,7 @@ found:
     }
 
   sess = pool_elt_at_index (gtm->sessions, tc->b2.gtpu.session_index);
-  active = sx_get_rules (sess, SX_ACTIVE);
+  active = pfcp_get_rules (sess, PFCP_ACTIVE);
   far = vec_elt_at_index (active->far, tc->b2.gtpu.far_index & ~0x80000000);
 
   /* Send it */

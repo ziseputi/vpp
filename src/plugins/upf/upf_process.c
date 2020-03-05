@@ -179,12 +179,12 @@ upf_process (vlib_main_t * vm, vlib_node_runtime_t * node,
 
 	  error = 0;
 	  next = UPF_PROCESS_NEXT_DROP;
-	  active = sx_get_rules (sess, SX_ACTIVE);
+	  active = pfcp_get_rules (sess, PFCP_ACTIVE);
 
 	  if (PREDICT_TRUE (upf_buffer_opaque (b)->gtpu.pdr_idx != ~0))
 	    {
 	      pdr = active->pdr + upf_buffer_opaque (b)->gtpu.pdr_idx;
-	      far = sx_get_far_by_id (active, pdr->far_id);
+	      far = pfcp_get_far_by_id (active, pdr->far_id);
 	    }
 
 	  if (PREDICT_FALSE (!pdr) || PREDICT_FALSE (!far))

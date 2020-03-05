@@ -485,9 +485,9 @@ typedef struct
 {
   u16 id;
   u16 methods;
-#define SX_URR_TIME   0x0001
-#define SX_URR_VOLUME 0x0002
-#define SX_URR_EVENT  0x0004
+#define PFCP_URR_TIME   0x0001
+#define PFCP_URR_VOLUME 0x0002
+#define PFCP_URR_EVENT  0x0004
 
   u16 triggers;
 
@@ -496,11 +496,11 @@ typedef struct
 #define URR_AFTER_MONITORING_TIME       BIT(1)
 
   u8 update_flags;
-#define SX_URR_UPDATE_VOLUME_QUOTA		BIT(0)
-#define SX_URR_UPDATE_TIME_QUOTA		BIT(1)
-#define SX_URR_UPDATE_TIME_THRESHOLD		BIT(2)
-#define SX_URR_UPDATE_MONITORING_TIME		BIT(3)
-#define SX_URR_UPDATE_MEASUREMENT_PERIOD	BIT(4)
+#define PFCP_URR_UPDATE_VOLUME_QUOTA		BIT(0)
+#define PFCP_URR_UPDATE_TIME_QUOTA		BIT(1)
+#define PFCP_URR_UPDATE_TIME_THRESHOLD		BIT(2)
+#define PFCP_URR_UPDATE_MONITORING_TIME		BIT(3)
+#define PFCP_URR_UPDATE_MEASUREMENT_PERIOD	BIT(4)
 
   u32 seq_no;
   f64 start_time;
@@ -549,7 +549,7 @@ typedef struct
   u32 id;
 
   u8 flags;
-#define SX_QER_MBR				BIT(0)
+#define PFCP_QER_MBR				BIT(0)
 
   u8 gate_status[UPF_DIRECTION_MAX];
 
@@ -585,7 +585,7 @@ typedef struct
   } assoc;
 
   uint32_t flags;
-#define SX_UPDATING    0x8000
+#define PFCP_UPDATING    0x8000
 
   volatile int active;
 
@@ -597,10 +597,10 @@ typedef struct
     upf_urr_t *urr;
     upf_qer_t *qer;
     uint32_t flags;
-#define SX_SDF_IPV4	BIT(0)
-#define SX_SDF_IPV6	BIT(1)
-#define SX_ADR		BIT(2)
-#define SX_CLASSIFY	BIT(3)
+#define PFCP_SDF_IPV4	BIT(0)
+#define PFCP_SDF_IPV6	BIT(1)
+#define PFCP_ADR		BIT(2)
+#define PFCP_CLASSIFY	BIT(3)
 
     u16 proxy_precedence;
     u32 proxy_pdr_idx;
@@ -616,8 +616,8 @@ typedef struct
     send_end_marker_t *send_end_marker;
     urr_time_t inactivity_timer;
   } rules[2];
-#define SX_ACTIVE  0
-#define SX_PENDING 1
+#define PFCP_ACTIVE  0
+#define PFCP_PENDING 1
 
   /** FIFO to hold the DL pkts for this session */
   vlib_buffer_t *dl_fifo;

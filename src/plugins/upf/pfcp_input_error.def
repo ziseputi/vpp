@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-sx_error (NONE, "no error")
-//sx_error (LENGTH_ERROR, "UDP packets with length errors")
-sx_error (ENQUEUED, "Sx packets enqueued")
-//sx_error (EVENT_FIFO_FULL, "UDP session event fifo full")
+pfcp_error (NONE, "no error")
+//pfcp_error (LENGTH_ERROR, "UDP packets with length errors")
+pfcp_error (ENQUEUED, "PFCP packets enqueued")
+//pfcp_error (EVENT_FIFO_FULL, "UDP session event fifo full")

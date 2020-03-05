@@ -352,7 +352,7 @@ upf_application_detection (vlib_main_t * vm, vlib_buffer_t * b,
   // known PDR.....
   // scan for Application Rules
 
-  if (!(active->flags & SX_ADR))
+  if (!(active->flags & PFCP_ADR))
     return;
 
   if (is_ip4)
@@ -725,7 +725,7 @@ upf_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  /* Get next node index and adj index from tunnel next_dpo */
 	  sidx = upf_buffer_opaque (b)->gtpu.session_index;
 	  sess = pool_elt_at_index (gtm->sessions, sidx);
-	  active = sx_get_rules (sess, SX_ACTIVE);
+	  active = pfcp_get_rules (sess, PFCP_ACTIVE);
 
 	  next = UPF_CLASSIFY_NEXT_PROCESS;
 

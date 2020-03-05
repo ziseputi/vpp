@@ -57,7 +57,7 @@ typedef enum
   EVENT_RX = 1,
   EVENT_TX,
   EVENT_URR,
-} sx_process_event_t;
+} pfcp_process_event_t;
 
 static vlib_node_registration_t pfcp_api_process_node;
 
@@ -128,7 +128,7 @@ upf_pfcp_send_data (pfcp_msg_t * msg)
 
   if (vlib_buffer_alloc (vm, &bi0, 1) != 1)
     {
-      gtp_debug ("can't allocate buffer for Sx send event");
+      gtp_debug ("can't allocate buffer for PFCP send event");
       return;
     }
 
@@ -203,8 +203,8 @@ encode_pfcp_session_msg (upf_session_t * sx, u8 type,
 
   msg->fib_index = sx->fib_index, msg->lcl.address = sx->up_address;
   msg->rmt.address = sx->cp_address;
-  msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_SX);
-  msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_SX);
+  msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
+  msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
   gtp_debug ("PFCP Msg no VRF %d from %U:%d to %U:%d\n",
 		msg->fib_index,
 		format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
@@ -258,8 +258,8 @@ encode_pfcp_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
   msg->fib_index = n->fib_index;
   msg->lcl.address = n->lcl_addr;
   msg->rmt.address = n->rmt_addr;
-  msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_SX);
-  msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_SX);
+  msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
+  msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
   gtp_debug ("PFCP Msg no VRF %d from %U:%d to %U:%d\n",
 		msg->fib_index,
 		format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
@@ -506,7 +506,7 @@ request_t1_expired (u32 seq_no)
 	{
 	  upf_node_assoc_t *n = pool_elt_at_index (gtm->nodes, msg->node);
 
-	  sx_release_association (n);
+	  pfcp_release_association (n);
 	}
     }
 }
@@ -671,7 +671,7 @@ upf_pfcp_session_usage_report (upf_session_t * sx, ip46_address_t * ue,
   upf_urr_t *urr;
   int send = 0;
 
-  active = sx_get_rules (sx, SX_ACTIVE);
+  active = pfcp_get_rules (sx, PFCP_ACTIVE);
 
   gtp_debug ("Active: %p (%d)\n", active, vec_len (active->urr));
 
@@ -689,7 +689,7 @@ upf_pfcp_session_usage_report (upf_session_t * sx, ip46_address_t * ue,
 
   vec_foreach (ev, uev)
   {
-    urr = sx_get_urr_by_id (active, ev->urr_id);
+    urr = pfcp_get_urr_by_id (active, ev->urr_id);
     if (!urr)
       continue;
 
@@ -853,7 +853,7 @@ upf_pfcp_session_urr_timer (upf_session_t * sx, f64 now)
   f64 vnow = vlib_time_now (gtm->vlib_main);
 #endif
 
-  active = sx_get_rules (sx, SX_ACTIVE);
+  active = pfcp_get_rules (sx, PFCP_ACTIVE);
 
   gtp_debug ("upf_pfcp_session_urr_timer (%p, 0x%016" PRIx64 " @ %u, %.4f)\n"
 	     "  UP Inactivity Timer: %u secs, inactive %12.4f secs (0x%08x)",
@@ -1045,7 +1045,7 @@ upf_validate_session_timer (upf_session_t *sx)
 
 #define urr_check(V, NOW)	(~0 != (V).handle)
 
-  r = sx_get_rules (sx, SX_PENDING);
+  r = pfcp_get_rules (sx, PFCP_PENDING);
   vec_foreach (urr, r->urr)
     {
       if (!urr_check(urr->measurement_period, now) &&
@@ -1072,7 +1072,7 @@ upf_validate_session_timer (upf_session_t *sx)
 #define urr_check(V, NOW)			\
   (((V).handle != ~0) && (V).expected < ((NOW) - 1))
 
-  r = sx_get_rules (sx, SX_ACTIVE);
+  r = pfcp_get_rules (sx, PFCP_ACTIVE);
   vec_foreach (urr, r->urr)
     {
       if (!urr_check (urr->measurement_period, now) &&
@@ -1166,7 +1166,7 @@ timer_id_cmp (void *a1, void *a2)
 }
 
 static uword
-sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
+pfcp_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   uword event_type, *event_data = 0;
@@ -1347,7 +1347,7 @@ upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4)
   u8 *data;
   uword *p;
 
-  /* signal Sx process to handle data */
+  /* signal PFCP process to handle data */
   msg = clib_mem_alloc_aligned_no_fail (sizeof (*msg), CLIB_CACHE_LINE_BYTES);
   memset (msg, 0, sizeof (*msg));
   msg->fib_index = vnet_buffer (b)->ip.fib_index;
@@ -1424,9 +1424,9 @@ pfcp_server_main_init (vlib_main_t * vm)
   TW (tw_timer_wheel_init) (&psm->timer, NULL,
 			    TW_SECS_PER_CLOCK /* 10ms timer interval */ , ~0);
 
-  udp_register_dst_port (vm, UDP_DST_PORT_SX,
+  udp_register_dst_port (vm, UDP_DST_PORT_PFCP,
 			 sx4_input_node.index, /* is_ip4 */ 1);
-  udp_register_dst_port (vm, UDP_DST_PORT_SX,
+  udp_register_dst_port (vm, UDP_DST_PORT_PFCP,
 			 sx6_input_node.index, /* is_ip4 */ 0);
 
   gtp_debug ("PFCP: start_time: %p, %d, %x.", psm, psm->start_time,
@@ -1436,7 +1436,7 @@ pfcp_server_main_init (vlib_main_t * vm)
 
 /* *INDENT-OFF* */
 VLIB_REGISTER_NODE (pfcp_api_process_node, static) = {
-    .function = sx_process,
+    .function = pfcp_process,
     .type = VLIB_NODE_TYPE_PROCESS,
     .process_log2_n_stack_bytes = 16,
     .runtime_data_bytes = sizeof (void *),

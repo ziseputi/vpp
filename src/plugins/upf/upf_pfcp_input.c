@@ -32,16 +32,16 @@ vlib_node_registration_t sx6_input_node;
 
 typedef enum
 {
-#define sx_error(n,s) SX_ERROR_##n,
-#include "sx_input_error.def"
-#undef sx_error
-  SX_N_ERROR,
-} sx_error_t;
+#define pfcp_error(n,s) PFCP_ERROR_##n,
+#include "pfcp_input_error.def"
+#undef pfcp_error
+  PFCP_N_ERROR,
+} pfcp_error_t;
 
-static char *sx_error_strings[] = {
-#define sx_error(n,s) s,
-#include "sx_input_error.def"
-#undef sx_error
+static char *pfcp_error_strings[] = {
+#define pfcp_error(n,s) s,
+#include "pfcp_input_error.def"
+#undef pfcp_error
 };
 
 typedef struct
@@ -49,31 +49,31 @@ typedef struct
   u32 connection;
   u32 disposition;
   u32 thread_index;
-} sx_input_trace_t;
+} pfcp_input_trace_t;
 
 /* packet trace format function */
 static u8 *
-format_sx_input_trace (u8 * s, va_list * args)
+format_pfcp_input_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
-  sx_input_trace_t *t = va_arg (*args, sx_input_trace_t *);
+  pfcp_input_trace_t *t = va_arg (*args, pfcp_input_trace_t *);
 
-  s = format (s, "Sx Input: connection %d, disposition %d, thread %d",
+  s = format (s, "PFCP Input: connection %d, disposition %d, thread %d",
 	      t->connection, t->disposition, t->thread_index);
   return s;
 }
 
-#define foreach_sx_input_next			\
+#define foreach_pfcp_input_next			\
   _ (DROP, "error-drop")
 
 typedef enum
 {
-#define _(s, n) SX_INPUT_NEXT_##s,
-  foreach_sx_input_next
+#define _(s, n) PFCP_INPUT_NEXT_##s,
+  foreach_pfcp_input_next
 #undef _
-    SX_INPUT_N_NEXT,
-} sx_input_next_t;
+    PFCP_INPUT_N_NEXT,
+} pfcp_input_next_t;
 
 always_inline uword
 sx46_input_inline (vlib_main_t * vm, vlib_node_runtime_t * node,
@@ -97,8 +97,8 @@ sx46_input_inline (vlib_main_t * vm, vlib_node_runtime_t * node,
 	{
 	  u32 bi0;
 	  vlib_buffer_t *b0;
-	  u32 next0 = SX_INPUT_NEXT_DROP;
-	  u32 error0 = SX_ERROR_ENQUEUED;
+	  u32 next0 = PFCP_INPUT_NEXT_DROP;
+	  u32 error0 = PFCP_ERROR_ENQUEUED;
 
 	  /* speculatively enqueue b0 to the current next frame */
 	  bi0 = from[0];
@@ -116,7 +116,7 @@ sx46_input_inline (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  if (PREDICT_FALSE ((node->flags & VLIB_NODE_FLAG_TRACE)
 			     && (b0->flags & VLIB_BUFFER_IS_TRACED)))
 	    {
-	      sx_input_trace_t *t =
+	      pfcp_input_trace_t *t =
 		vlib_add_trace (vm, node, b0, sizeof (*t));
 
 	      t->connection = ~0;
@@ -149,14 +149,14 @@ VLIB_REGISTER_NODE (sx4_input_node) =
   .function = sx4_input,
   .name = "upf-sx4-input",
   .vector_size = sizeof (u32),
-  .format_trace = format_sx_input_trace,
+  .format_trace = format_pfcp_input_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN (sx_error_strings),
-  .error_strings = sx_error_strings,
-  .n_next_nodes = SX_INPUT_N_NEXT,
+  .n_errors = ARRAY_LEN (pfcp_error_strings),
+  .error_strings = pfcp_error_strings,
+  .n_next_nodes = PFCP_INPUT_N_NEXT,
   .next_nodes = {
-#define _(s, n) [SX_INPUT_NEXT_##s] = n,
-      foreach_sx_input_next
+#define _(s, n) [PFCP_INPUT_NEXT_##s] = n,
+      foreach_pfcp_input_next
 #undef _
   },
 };
@@ -174,14 +174,14 @@ VLIB_REGISTER_NODE (sx6_input_node) =
   .function = sx6_input,
   .name = "upf-sx6-input",
   .vector_size = sizeof (u32),
-  .format_trace = format_sx_input_trace,
+  .format_trace = format_pfcp_input_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN (sx_error_strings),
-  .error_strings = sx_error_strings,
-  .n_next_nodes = SX_INPUT_N_NEXT,
+  .n_errors = ARRAY_LEN (pfcp_error_strings),
+  .error_strings = pfcp_error_strings,
+  .n_next_nodes = PFCP_INPUT_N_NEXT,
   .next_nodes = {
-#define _(s, n) [SX_INPUT_NEXT_##s] = n,
-      foreach_sx_input_next
+#define _(s, n) [PFCP_INPUT_NEXT_##s] = n,
+      foreach_pfcp_input_next
 #undef _
   },
 };
