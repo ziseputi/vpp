@@ -581,7 +581,7 @@ upf_init (vlib_main_t * vm)
   if (error)
     return error;
 
-  return sx_server_main_init (vm);
+  return pfcp_server_main_init (vm);
 }
 
 VLIB_INIT_FUNCTION (upf_init);

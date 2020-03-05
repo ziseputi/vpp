@@ -65,18 +65,18 @@ static void upf_pfcp_make_response (sx_msg_t * resp, sx_msg_t * req,
 				    size_t len);
 static void restart_response_timer (sx_msg_t * msg);
 
-sx_server_main_t sx_server_main;
+pfcp_server_main_t pfcp_server_main;
 
 #define MAX_HDRS_LEN    100	/* Max number of bytes for headers */
 
 static void
 flush_ip_lookup_tx_frames (vlib_main_t *vm, int is_ip4)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_frame_t *f;
   u32 next_index;
 
-  f = sxsm->ip_lookup_tx_frames[!is_ip4];
+  f = psm->ip_lookup_tx_frames[!is_ip4];
   if (!f || f->n_vectors == 0)
     return;
 
@@ -84,12 +84,12 @@ flush_ip_lookup_tx_frames (vlib_main_t *vm, int is_ip4)
   next_index = is_ip4 ? ip4_lookup_node.index : ip6_lookup_node.index;
 
   vlib_put_frame_to_node (vm, next_index, f);
-  sxsm->ip_lookup_tx_frames[!is_ip4] = 0;
+  psm->ip_lookup_tx_frames[!is_ip4] = 0;
 }
 
 void upf_ip_lookup_tx (u32 bi, int is_ip4)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = vlib_get_main ();
   u32 to_node_index;
   vlib_frame_t *f;
@@ -101,12 +101,12 @@ void upf_ip_lookup_tx (u32 bi, int is_ip4)
   to_node_index = is_ip4 ?
     ip4_lookup_node.index : ip6_lookup_node.index;
 
-  f = sxsm->ip_lookup_tx_frames[!is_ip4];
+  f = psm->ip_lookup_tx_frames[!is_ip4];
   if (!f)
     {
       f = vlib_get_frame_to_node (vm, to_node_index);
       ASSERT (f);
-      sxsm->ip_lookup_tx_frames[!is_ip4] = f;
+      psm->ip_lookup_tx_frames[!is_ip4] = f;
     }
 
   to_next = vlib_frame_vector_args (f);
@@ -170,13 +170,13 @@ static int
 encode_sx_session_msg (upf_session_t * sx, u8 type,
 		       struct pfcp_group *grp, sx_msg_t * msg)
 {
-  sx_server_main_t *sxs = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   int r = 0;
 
   init_sx_msg (msg);
 
-  msg->seq_no = clib_atomic_add_fetch (&sxs->seq_no, 1) % 0x1000000;
+  msg->seq_no = clib_atomic_add_fetch (&psm->seq_no, 1) % 0x1000000;
   msg->node = sx->assoc.node;
   msg->session_index = sx - gtm->sessions;
   msg->data = vec_new (u8, 2048);
@@ -226,13 +226,13 @@ static int
 encode_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
 		    sx_msg_t * msg)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   int r = 0;
 
   init_sx_msg (msg);
 
-  msg->seq_no = clib_atomic_add_fetch (&sxsm->seq_no, 1) % 0x1000000;
+  msg->seq_no = clib_atomic_add_fetch (&psm->seq_no, 1) % 0x1000000;
   msg->node = n - gtm->nodes;
   msg->data = vec_new (u8, 2048);
 
@@ -273,7 +273,7 @@ encode_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
 static int
 upf_pfcp_server_rx_msg (sx_msg_t * msg)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   int len = vec_len (msg->data);
   u8 *seq_no;
 
@@ -334,14 +334,14 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
       {
 	uword *p = NULL;
 
-	p = mhash_get (&sxsm->response_q, msg->request_key);
+	p = mhash_get (&psm->response_q, msg->request_key);
 	if (!p)
 	  {
 	    upf_pfcp_handle_msg (msg);
 	  }
 	else
 	  {
-	    sx_msg_t *resp = sx_msg_pool_elt_at_index (sxsm, p[0]);
+	    sx_msg_t *resp = sx_msg_pool_elt_at_index (psm, p[0]);
 
 	    gtp_debug ("resend... %d\n", p[0]);
 	    upf_pfcp_send_data (resp);
@@ -366,19 +366,19 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
 	sx_msg_t *req;
 	uword *p;
 
-	p = hash_get (sxsm->request_q, msg->seq_no);
+	p = hash_get (psm->request_q, msg->seq_no);
 	gtp_debug ("Msg Seq No: %u, %p, idx %u\n", msg->seq_no, p,
 		      p ? p[0] : ~0);
 	if (!p)
 	  break;
 
-	req = sx_msg_pool_elt_at_index (sxsm, p[0]);
-	hash_unset (sxsm->request_q, msg->seq_no);
+	req = sx_msg_pool_elt_at_index (psm, p[0]);
+	hash_unset (psm->request_q, msg->seq_no);
 	upf_pfcp_server_stop_timer (req->timer);
 
 	msg->node = req->node;
 
-	sx_msg_pool_put (sxsm, req);
+	sx_msg_pool_put (psm, req);
 
 	upf_pfcp_handle_msg (msg);
 
@@ -395,14 +395,14 @@ upf_pfcp_server_rx_msg (sx_msg_t * msg)
 static sx_msg_t *
 build_sx_session_msg (upf_session_t * sx, u8 type, struct pfcp_group *grp)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   sx_msg_t *msg;
   int r = 0;
 
-  msg = sx_msg_pool_get(sxsm);
+  msg = sx_msg_pool_get(psm);
   if ((r = encode_sx_session_msg (sx, type, grp, msg)) != 0)
     {
-      sx_msg_pool_put (sxsm, msg);
+      sx_msg_pool_put (psm, msg);
       return NULL;
     }
 
@@ -412,14 +412,14 @@ build_sx_session_msg (upf_session_t * sx, u8 type, struct pfcp_group *grp)
 static sx_msg_t *
 build_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   sx_msg_t *msg;
   int r = 0;
 
-  msg = sx_msg_pool_get(sxsm);
+  msg = sx_msg_pool_get(psm);
   if ((r = encode_sx_node_msg (n, type, grp, msg)) != 0)
     {
-      sx_msg_pool_put (sxsm, msg);
+      sx_msg_pool_put (psm, msg);
       return NULL;
     }
 
@@ -429,8 +429,8 @@ build_sx_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp)
 int
 upf_pfcp_send_request (upf_session_t * sx, u8 type, struct pfcp_group *grp)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  vlib_main_t *vm = sxsm->vlib_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  vlib_main_t *vm = psm->vlib_main;
   sx_msg_t *msg;
   int r = -1;
 
@@ -455,32 +455,32 @@ out_free:
 static void
 enqueue_request (sx_msg_t * msg, u32 n1, u32 t1)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  u32 id = sx_msg_get_index(sxsm, msg);
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  u32 id = sx_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
   msg->n1 = n1;
   msg->t1 = t1;
 
-  hash_set (sxsm->request_q, msg->seq_no, id);
+  hash_set (psm->request_q, msg->seq_no, id);
   msg->timer = upf_pfcp_server_start_timer (PFCP_SERVER_T1, msg->seq_no, msg->t1);
 }
 
 static void
 request_t1_expired (u32 seq_no)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   sx_msg_t *msg;
   uword *p;
 
-  p = hash_get (sxsm->request_q, seq_no);
+  p = hash_get (psm->request_q, seq_no);
   gtp_debug ("Msg Seq No: %u, %p, idx %u\n", seq_no, p, p ? p[0] : ~0);
   if (!p)
      /* msg already processed, overlap of timeout and late answer */
      return;
 
-  msg = sx_msg_pool_elt_at_index (sxsm, p[0]);
+  msg = sx_msg_pool_elt_at_index (psm, p[0]);
   gtp_debug ("Msg Seq No: %u, %p, n1 %u\n", msg->seq_no, msg, msg->n1);
 
   if (--msg->n1 != 0)
@@ -498,8 +498,8 @@ request_t1_expired (u32 seq_no)
       gtp_debug ("abort...\n");
       // TODO: handle communication breakdown....
 
-      hash_unset (sxsm->request_q, msg->seq_no);
-      sx_msg_pool_put (sxsm, msg);
+      hash_unset (psm->request_q, msg->seq_no);
+      sx_msg_pool_put (psm, msg);
 
       if (type == PFCP_HEARTBEAT_REQUEST
 	  && !pool_is_free_index (gtm->nodes, node))
@@ -547,21 +547,21 @@ upf_pfcp_server_send_node_request (upf_node_assoc_t * n, u8 type,
 static void
 response_expired (u32 id)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  sx_msg_t *msg = sx_msg_pool_elt_at_index (sxsm, id);
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  sx_msg_t *msg = sx_msg_pool_elt_at_index (psm, id);
 
   gtp_debug ("Msg Seq No: %u, %p, idx %u\n", msg->seq_no, msg, id);
   gtp_debug ("release...\n");
 
-  mhash_unset (&sxsm->response_q, msg->request_key, NULL);
-  sx_msg_pool_put (sxsm, msg);
+  mhash_unset (&psm->response_q, msg->request_key, NULL);
+  sx_msg_pool_put (psm, msg);
 }
 
 static void
 restart_response_timer (sx_msg_t * msg)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  u32 id = sx_msg_get_index(sxsm, msg);
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  u32 id = sx_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
 
@@ -574,12 +574,12 @@ restart_response_timer (sx_msg_t * msg)
 static void
 enqueue_response (sx_msg_t * msg)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  u32 id = sx_msg_get_index(sxsm, msg);
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  u32 id = sx_msg_get_index(psm, msg);
 
   gtp_debug ("Msg Seq No: %u, idx %u\n", msg->seq_no, id);
 
-  mhash_set (&sxsm->response_q, msg->request_key, id, NULL);
+  mhash_set (&psm->response_q, msg->request_key, id, NULL);
   msg->timer =
     upf_pfcp_server_start_timer (PFCP_SERVER_RESPONSE, id, RESPONSE_TIMEOUT);
 }
@@ -599,11 +599,11 @@ int
 upf_pfcp_send_response (sx_msg_t * req, u64 cp_seid, u8 type,
 			struct pfcp_group *grp)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   sx_msg_t *resp;
   int r = 0;
 
-  resp = sx_msg_pool_get(sxsm);
+  resp = sx_msg_pool_get(psm);
   upf_pfcp_make_response (resp, req, 2048);
 
   resp->hdr->version = req->hdr->version;
@@ -629,7 +629,7 @@ upf_pfcp_send_response (sx_msg_t * req, u64 cp_seid, u8 type,
   r = pfcp_encode_msg (type, grp, &resp->data);
   if (r != 0)
     {
-      sx_msg_pool_put (sxsm, resp);
+      sx_msg_pool_put (psm, resp);
       goto out_free;
     }
 
@@ -748,10 +748,10 @@ upf_pfcp_session_usage_report (upf_session_t * sx, ip46_address_t * ue,
 void
 upf_pfcp_session_stop_up_inactivity_timer(urr_time_t * t)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
 
-  if (t->handle != ~0 &&  t->expected > vlib_time_now (sxsm->vlib_main))
-    TW (tw_timer_stop) (&sxsm->timer, t->handle);
+  if (t->handle != ~0 &&  t->expected > vlib_time_now (psm->vlib_main))
+    TW (tw_timer_stop) (&psm->timer, t->handle);
 
   t->handle = ~0;
   t->expected = 0;
@@ -760,7 +760,7 @@ upf_pfcp_session_stop_up_inactivity_timer(urr_time_t * t)
 void
 upf_pfcp_session_start_up_inactivity_timer(u32 si, f64 last, urr_time_t * t)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   i64 interval;
   f64 period;
 
@@ -769,25 +769,25 @@ upf_pfcp_session_start_up_inactivity_timer(u32 si, f64 last, urr_time_t * t)
 
   // start timer.....
 
-  period = t->period - trunc(vlib_time_now (sxsm->vlib_main) - last);
-  t->expected = vlib_time_now (sxsm->vlib_main) + period;
+  period = t->period - trunc(vlib_time_now (psm->vlib_main) - last);
+  t->expected = vlib_time_now (psm->vlib_main) + period;
 
-  interval = sxsm->timer.ticks_per_second * period;
+  interval = psm->timer.ticks_per_second * period;
   interval = clib_max (interval, 1);	/* make sure interval is at least 1 */
-  t->handle = TW (tw_timer_start) (&sxsm->timer, si, 0, interval);
+  t->handle = TW (tw_timer_start) (&psm->timer, si, 0, interval);
 
   gtp_debug
     ("starting UP inactivity timer on sidx %u, handle 0x%08x: "
      "now is %.4f, expire in %lu ticks "
      " clib_now %.4f, current tick: %u",
-     si, t->handle, sxsm->timer.last_run_time, interval,
-     unix_time_now (), sxsm->timer.current_tick);
+     si, t->handle, psm->timer.last_run_time, interval,
+     unix_time_now (), psm->timer.current_tick);
 }
 
 void
 upf_pfcp_session_stop_urr_time (urr_time_t * t, const f64 now)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
 
   if (t->handle != ~0 && t->expected > now)
     {
@@ -799,7 +799,7 @@ upf_pfcp_session_stop_urr_time (urr_time_t * t, const f64 now)
        * Failing to stop a timer is not a problem. The timer will fire, but
        * the URR scan woun't find any expired URRs.
        */
-      TW (tw_timer_stop) (&sx->timer, t->handle);
+      TW (tw_timer_stop) (&psm->timer, t->handle);
     }
 
   t->handle = ~0;
@@ -809,11 +809,11 @@ upf_pfcp_session_stop_urr_time (urr_time_t * t, const f64 now)
 void
 upf_pfcp_session_start_stop_urr_time (u32 si, urr_time_t * t, u8 start_it)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
 
   /* the timer interval must be based on tw->current_tick, so for calculating that
    * we need to use the now timestamp of that current_tick */
-  const f64 now = sx->timer.last_run_time;
+  const f64 now = psm->timer.last_run_time;
 
   if (t->handle != ~0)
     upf_pfcp_session_stop_urr_time (t, now);
@@ -825,9 +825,9 @@ upf_pfcp_session_start_stop_urr_time (u32 si, urr_time_t * t, u8 start_it)
       // start timer.....
 
       t->expected = t->base + t->period;
-      interval = sx->timer.ticks_per_second * (t->expected - now) + 1;
+      interval = psm->timer.ticks_per_second * (t->expected - now) + 1;
       interval = clib_max (interval, 1);	/* make sure interval is at least 1 */
-      t->handle = TW (tw_timer_start) (&sx->timer, si, 0, interval);
+      t->handle = TW (tw_timer_start) (&psm->timer, si, 0, interval);
 
       gtp_debug
 	("starting URR timer on sidx %u, handle 0x%08x: "
@@ -835,7 +835,7 @@ upf_pfcp_session_start_stop_urr_time (u32 si, urr_time_t * t, u8 start_it)
 	 " @ %.4f (%U), clib_now %.4f, current tick: %u",
 	 si, t->handle, now, t->base, interval,
 	 t->expected, format_time_float, 0, t->expected,
-	 unix_time_now (), sx->timer.current_tick);
+	 unix_time_now (), psm->timer.current_tick);
     }
 }
 
@@ -1118,28 +1118,28 @@ upf_validate_session_timers ()
 void
 upf_pfcp_server_stop_timer (u32 handle)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
 
-  TW (tw_timer_stop) (&sxsm->timer, handle);
+  TW (tw_timer_stop) (&psm->timer, handle);
 }
 
 u32
 upf_pfcp_server_start_timer (u8 type, u32 id, u32 seconds)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
-  i64 interval = seconds * sxsm->timer.ticks_per_second;
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  i64 interval = seconds * psm->timer.ticks_per_second;
 
   ASSERT (type < 8);
   ASSERT ((id & 0xff000000) == 0);
 
-  return TW (tw_timer_start) (&sxsm->timer, ((0x80 | type) << 24) | id, 0,
+  return TW (tw_timer_start) (&psm->timer, ((0x80 | type) << 24) | id, 0,
 			      interval);
 }
 
 void
 upf_server_send_heartbeat (u32 node_idx)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_heartbeat_request_t req;
   upf_main_t *gtm = &upf_main;
   upf_node_assoc_t *n;
@@ -1148,7 +1148,7 @@ upf_server_send_heartbeat (u32 node_idx)
 
   memset (&req, 0, sizeof (req));
   SET_BIT (req.grp.fields, HEARTBEAT_REQUEST_RECOVERY_TIME_STAMP);
-  req.recovery_time_stamp = sxsm->start_time;
+  req.recovery_time_stamp = psm->start_time;
 
   upf_pfcp_server_send_node_request (n, PFCP_HEARTBEAT_REQUEST, &req.grp);
 
@@ -1168,15 +1168,15 @@ timer_id_cmp (void *a1, void *a2)
 static uword
 sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   uword event_type, *event_data = 0;
   upf_main_t *gtm = &upf_main;
   u32 *expired = NULL;
   u32 last_expired;
 
-  sx_msg_pool_init (sxsm);
-  sxsm->timer.last_run_time =
-    sxsm->now = unix_time_now ();
+  sx_msg_pool_init (psm);
+  psm->timer.last_run_time =
+    psm->now = unix_time_now ();
 
   while (1)
     {
@@ -1184,7 +1184,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
       f64 timeout;
 
       ticks_until_expiration =
-	TW (tw_timer_first_expires_in_ticks) (&sxsm->timer);
+	TW (tw_timer_first_expires_in_ticks) (&psm->timer);
       /* min 1 tick wait */
       ticks_until_expiration = clib_max (ticks_until_expiration, 1);
       /* sleep max 1s */
@@ -1196,12 +1196,12 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
       (void) vlib_process_wait_for_event_or_clock (vm, timeout);
       event_type = vlib_process_get_events (vm, &event_data);
 
-      sx_msg_pool_loop_start (sxsm);
-      sxsm->now = unix_time_now ();
+      sx_msg_pool_loop_start (psm);
+      psm->now = unix_time_now ();
 
       /* run the timing wheel first, to that the internal base for new and updated timers
        * is set to now */
-      expired = TW (tw_timer_expire_timers_vec) (&sxsm->timer, sxsm->now, expired);
+      expired = TW (tw_timer_expire_timers_vec) (&psm->timer, psm->now, expired);
 
       switch (event_type)
 	{
@@ -1233,7 +1233,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 		  {
 		    sx_msg_t *msg;
 
-		    msg = sx_msg_pool_add (sxsm, tx);
+		    msg = sx_msg_pool_add (psm, tx);
 		    upf_pfcp_server_send_request (msg);
 		  }
 		else
@@ -1261,7 +1261,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 			      ueh->session_idx, sx,
 			      format_ip46_address, &ueh->ue, IP46_TYPE_ANY,
 			      vec_len(uev));
-		upf_pfcp_session_usage_report (sx, &ueh->ue, uev, sxsm->now);
+		upf_pfcp_session_usage_report (sx, &ueh->ue, uev, psm->now);
 
 		vec_free_h (uev, sizeof (upf_event_urr_hdr_t));
 	      }
@@ -1293,7 +1293,7 @@ sx_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
 		  continue;
 
 		sx = pool_elt_at_index (gtm->sessions, si);
-		upf_pfcp_session_urr_timer (sx, sxsm->now);
+		upf_pfcp_session_urr_timer (sx, psm->now);
 	      }
 	      break;
 
@@ -1400,8 +1400,8 @@ upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4)
 void
 upf_pfcp_server_session_usage_report (upf_event_urr_data_t * uev)
 {
-  sx_server_main_t *sx = &sx_server_main;
-  vlib_main_t *vm = sx->vlib_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  vlib_main_t *vm = psm->vlib_main;
 
   vlib_process_signal_event_mt (vm, sx_api_process_node.index, EVENT_URR, (uword) uev);
 }
@@ -1409,19 +1409,19 @@ upf_pfcp_server_session_usage_report (upf_event_urr_data_t * uev)
 /*********************************************************/
 
 clib_error_t *
-sx_server_main_init (vlib_main_t * vm)
+pfcp_server_main_init (vlib_main_t * vm)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   clib_error_t *error;
 
   if ((error = vlib_call_init_function (vm, vnet_interface_cli_init)))
     return error;
 
-  sx->vlib_main = vm;
-  sx->start_time = time (NULL);
-  mhash_init (&sx->response_q, sizeof (uword), sizeof (u64) * 4);
+  psm->vlib_main = vm;
+  psm->start_time = time (NULL);
+  mhash_init (&psm->response_q, sizeof (uword), sizeof (u64) * 4);
 
-  TW (tw_timer_wheel_init) (&sx->timer, NULL,
+  TW (tw_timer_wheel_init) (&psm->timer, NULL,
 			    TW_SECS_PER_CLOCK /* 10ms timer interval */ , ~0);
 
   udp_register_dst_port (vm, UDP_DST_PORT_SX,

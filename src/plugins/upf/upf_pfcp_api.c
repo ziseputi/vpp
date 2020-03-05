@@ -397,15 +397,15 @@ static void
 static int
 handle_heartbeat_request (sx_msg_t * req, pfcp_heartbeat_request_t * msg)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_simple_response_t resp;
 
   memset (&resp, 0, sizeof (resp));
   SET_BIT (resp.grp.fields, PFCP_RESPONSE_RECOVERY_TIME_STAMP);
-  resp.response.recovery_time_stamp = sx->start_time;
+  resp.response.recovery_time_stamp = psm->start_time;
 
   gtp_debug ("PFCP: start_time: %p, %d, %x.",
-	     &sx, sx->start_time, sx->start_time);
+	     &psm, psm->start_time, psm->start_time);
 
   upf_pfcp_send_response (req, 0, PFCP_HEARTBEAT_RESPONSE, &resp.grp);
 
@@ -466,7 +466,7 @@ static int
 handle_association_setup_request (sx_msg_t * req,
 				  pfcp_association_setup_request_t * msg)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_association_setup_response_t resp;
   upf_main_t *gtm = &upf_main;
   upf_node_assoc_t *n;
@@ -479,7 +479,7 @@ handle_association_setup_request (sx_msg_t * req,
   init_response_node_id (&resp.response);
 
   SET_BIT (resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_RECOVERY_TIME_STAMP);
-  resp.recovery_time_stamp = sx->start_time;
+  resp.recovery_time_stamp = psm->start_time;
 
   SET_BIT (resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_TP_BUILD_ID);
   vec_add (resp.tp_build_id, vpe_version_string, strlen (vpe_version_string));
@@ -596,7 +596,7 @@ static void
 send_simple_repsonse(sx_msg_t * req, u64 seid, u8 type,
 		     pfcp_cause_t cause, pfcp_offending_ie_t * err)
 {
-  sx_server_main_t *sx = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_simple_response_t resp;
 
   memset (&resp, 0, sizeof (resp));
@@ -620,7 +620,7 @@ send_simple_repsonse(sx_msg_t * req, u64 seid, u8 type,
  case PFCP_HEARTBEAT_RESPONSE:
  case PFCP_ASSOCIATION_SETUP_RESPONSE:
    SET_BIT (resp.grp.fields, PFCP_RESPONSE_RECOVERY_TIME_STAMP);
-   resp.response.recovery_time_stamp = sx->start_time;
+   resp.response.recovery_time_stamp = psm->start_time;
    break;
 
  default:
@@ -1608,7 +1608,7 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
 		   f64 now, struct pfcp_group *grp, int failed_rule_id_field,
 		   pfcp_failed_rule_id_t * failed_rule_id)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   struct pfcp_response *response = (struct pfcp_response *) (grp + 1);
   pfcp_create_urr_t *urr;
   struct rules *rules;
@@ -1689,7 +1689,7 @@ handle_create_urr (upf_session_t * sx, pfcp_create_urr_t * create_urr,
 	create->monitoring_time.unix_time =
 	  urr->monitoring_time + modf(sx->unix_time_start, &secs);
 	create->monitoring_time.vlib_time =
-	  vlib_time_now (sxsm->vlib_main) + (create->monitoring_time.unix_time - now);
+	  vlib_time_now (psm->vlib_main) + (create->monitoring_time.unix_time - now);
       }
 
     //TODO: subsequent_volume_threshold;
@@ -1723,7 +1723,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
 		   f64 now, struct pfcp_group *grp, int failed_rule_id_field,
 		   pfcp_failed_rule_id_t * failed_rule_id)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   struct pfcp_response *response = (struct pfcp_response *) (grp + 1);
   pfcp_update_urr_t *urr;
   int r = 0;
@@ -1809,7 +1809,7 @@ handle_update_urr (upf_session_t * sx, pfcp_update_urr_t * update_urr,
 	update->monitoring_time.unix_time =
 	  urr->monitoring_time + modf(sx->unix_time_start, &secs);
 	update->monitoring_time.vlib_time =
-	  vlib_time_now (sxsm->vlib_main) + (update->monitoring_time.unix_time - now);
+	  vlib_time_now (psm->vlib_main) + (update->monitoring_time.unix_time - now);
       }
 
     //TODO: subsequent_volume_threshold;
@@ -2065,11 +2065,11 @@ static void
 report_usage_ev (upf_session_t * sess, ip46_address_t * ue, upf_urr_t * urr,
 		 u32 trigger, f64 now, pfcp_usage_report_t ** report)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_usage_report_t *r;
   urr_volume_t volume;
   u64 start_time, duration;
-  f64 vnow = vlib_time_now (sxsm->vlib_main);
+  f64 vnow = vlib_time_now (psm->vlib_main);
 
   ASSERT (report);
 
@@ -2309,10 +2309,10 @@ handle_session_establishment_request (sx_msg_t * req,
   pfcp_session_establishment_response_t resp;
   ip46_address_t up_address = ip46_address_initializer;
   ip46_address_t cp_address = ip46_address_initializer;
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_session_t *sess = NULL;
   upf_node_assoc_t *assoc;
-  f64 now = sxsm->now;
+  f64 now = psm->now;
   int r = 0;
   int is_ip4;
 
@@ -2416,12 +2416,12 @@ handle_session_modification_request (sx_msg_t * req,
 				     msg)
 {
   pfcp_session_modification_response_t resp;
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_usage_report_t report;
   pfcp_query_urr_t *qry;
   struct rules *active;
   upf_session_t *sess;
-  f64 now = sxsm->now;
+  f64 now = psm->now;
   u64 cp_seid = 0;
   int r = 0;
 
@@ -2595,10 +2595,10 @@ static int
 handle_session_deletion_request (sx_msg_t * req,
 				 pfcp_session_deletion_request_t * msg)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   pfcp_session_deletion_response_t resp;
   struct rules *active;
-  f64 now = sxsm->now;
+  f64 now = psm->now;
   upf_session_t *sess;
   u64 cp_seid = 0;
   int r = 0;

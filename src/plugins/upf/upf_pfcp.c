@@ -388,7 +388,7 @@ sx_new_association (u32 fib_index, ip46_address_t * lcl_addr,
 void
 sx_release_association (upf_node_assoc_t * n)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
   u32 node_id = n - gtm->nodes;
   u32 idx = n->sessions;
@@ -426,14 +426,14 @@ sx_release_association (upf_node_assoc_t * n)
   ASSERT (n->sessions == ~0);
 
   /* *INDENT-OFF* */
-  pool_foreach (msg, sxsm->msg_pool,
+  pool_foreach (msg, psm->msg_pool,
   ({
     if (!msg->is_valid_pool_item || msg->node != node_id)
       continue;
-    hash_unset (sxsm->request_q, msg->seq_no);
-    mhash_unset (&sxsm->response_q, msg->request_key, NULL);
+    hash_unset (psm->request_q, msg->seq_no);
+    mhash_unset (&psm->response_q, msg->request_key, NULL);
     upf_pfcp_server_stop_timer (msg->timer);
-    sx_msg_pool_put (sxsm, msg);
+    sx_msg_pool_put (psm, msg);
   }));
   /* *INDENT-ON* */
 }
@@ -504,7 +504,7 @@ sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
 		   const ip46_address_t * up_address, uint64_t cp_seid,
 		   const ip46_address_t * cp_address)
 {
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = vlib_get_main ();
   upf_main_t *gtm = &upf_main;
   upf_session_t *sx;
@@ -524,11 +524,11 @@ sx_create_session (upf_node_assoc_t * assoc, int sx_fib_index,
   sx->cp_seid = cp_seid;
   sx->cp_address = *cp_address;
 
-  sx->last_ul_traffic = vlib_time_now (sxsm->vlib_main);
+  sx->last_ul_traffic = vlib_time_now (psm->vlib_main);
   for (size_t i = 0; i < ARRAY_LEN (sx->rules); i++)
     sx->rules[i].inactivity_timer.handle = ~0;
 
-  sx->unix_time_start = sxsm->now;
+  sx->unix_time_start = psm->now;
 
   clib_spinlock_init (&sx->lock);
 
@@ -970,8 +970,8 @@ int
 sx_disable_session (upf_session_t * sx, int drop_msgs)
 {
   struct rules *active = sx_get_rules (sx, SX_ACTIVE);
-  sx_server_main_t *sxsm = &sx_server_main;
-  const f64 now = sxsm->timer.last_run_time;
+  pfcp_server_main_t *psm = &pfcp_server_main;
+  const f64 now = psm->timer.last_run_time;
   upf_main_t *gtm = &upf_main;
   ue_ip_t *ue_ip;
   gtpu4_endp_rule_t *v4_teid;
@@ -1009,15 +1009,15 @@ sx_disable_session (upf_session_t * sx, int drop_msgs)
       sx_msg_t *msg;
 
       /* *INDENT-OFF* */
-      pool_foreach (msg, sxsm->msg_pool,
+      pool_foreach (msg, psm->msg_pool,
       ({
 	if (!msg->is_valid_pool_item || msg->session_index != si)
 	  continue;
 
-	hash_unset (sxsm->request_q, msg->seq_no);
-	mhash_unset (&sxsm->response_q, msg->request_key, NULL);
+	hash_unset (psm->request_q, msg->seq_no);
+	mhash_unset (&psm->response_q, msg->request_key, NULL);
 	upf_pfcp_server_stop_timer (msg->timer);
-	sx_msg_pool_put (sxsm, msg);
+	sx_msg_pool_put (psm, msg);
       }));
       /* *INDENT-ON* */
 
@@ -1714,11 +1714,11 @@ sx_update_apply (upf_session_t * sx)
   struct rules *pending = sx_get_rules (sx, SX_PENDING);
   struct rules *active = sx_get_rules (sx, SX_ACTIVE);
   int pending_pdr, pending_far, pending_urr, pending_qer;
-  sx_server_main_t *sxsm = &sx_server_main;
+  pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = vlib_get_main ();
   upf_main_t *gtm = &upf_main;
   u32 si = sx - gtm->sessions;
-  f64 now = sxsm->now;
+  f64 now = psm->now;
   upf_urr_t *urr;
 
   if (!pending->pdr && !pending->far && !pending->urr && !pending->qer)
