@@ -751,19 +751,6 @@ VLIB_REGISTER_NODE (pfcp_session_server_process_node) =
 static int
 pfcp_session_server_create (vlib_main_t * vm)
 {
-  vlib_thread_main_t *vtm = vlib_get_thread_main ();
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  u32 num_threads;
-  vlib_node_t *n;
-
-  num_threads = 1 /* main thread */  + vtm->n_threads;
-  vec_validate (pssm->vpp_queue, num_threads - 1);
-  vec_validate (pssm->sessions, num_threads - 1);
-  vec_validate (pssm->session_to_pfcp_session, num_threads - 1);
-
-  clib_rwlock_init (&pssm->sessions_lock);
-  clib_spinlock_init (&pssm->tw_lock);
-
   if (pfcp_session_server_attach ())
     {
       clib_warning ("failed to attach server");
@@ -774,14 +761,6 @@ pfcp_session_server_create (vlib_main_t * vm)
       clib_warning ("failed to start listening");
       return -1;
     }
-
-  /* Init timer wheel and process */
-  tw_timer_wheel_init_2t_1w_2048sl (&pssm->tw, pfcp_expired_timers_dispatch,
-				    1 /* timer interval */ , ~0);
-  vlib_node_set_state (vm, pfcp_session_server_process_node.index,
-		       VLIB_NODE_STATE_POLLING);
-  n = vlib_get_node (vm, pfcp_session_server_process_node.index);
-  vlib_start_process (vm, n->runtime_index);
 
   return 0;
 }
@@ -846,6 +825,9 @@ static clib_error_t *
 pfcp_session_server_main_init (vlib_main_t * vm)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+  vlib_thread_main_t *vtm = vlib_get_thread_main ();
+  u32 num_threads;
+  vlib_node_t *n;
 
   pssm->my_client_index = ~0;
   pssm->vlib_main = vm;
@@ -854,6 +836,22 @@ pfcp_session_server_main_init (vlib_main_t * vm)
   pssm->prealloc_fifos = 0;
   pssm->fifo_size = 64 << 10;
   pssm->private_segment_size = 0;
+
+  num_threads = 1 /* main thread */  + vtm->n_threads;
+  vec_validate (pssm->vpp_queue, num_threads - 1);
+  vec_validate (pssm->sessions, num_threads - 1);
+  vec_validate (pssm->session_to_pfcp_session, num_threads - 1);
+
+  clib_rwlock_init (&pssm->sessions_lock);
+  clib_spinlock_init (&pssm->tw_lock);
+
+  /* Init timer wheel and process */
+  tw_timer_wheel_init_2t_1w_2048sl (&pssm->tw, pfcp_expired_timers_dispatch,
+				    1 /* timer interval */ , ~0);
+  vlib_node_set_state (vm, pfcp_session_server_process_node.index,
+		       VLIB_NODE_STATE_POLLING);
+  n = vlib_get_node (vm, pfcp_session_server_process_node.index);
+  vlib_start_process (vm, n->runtime_index);
 
   return 0;
 }
