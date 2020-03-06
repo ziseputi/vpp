@@ -787,26 +787,23 @@ pfcp_session_server_create (vlib_main_t * vm)
 }
 
 static clib_error_t *
-pfcp_session_server_create_command_fn (vlib_main_t * vm,
-				       unformat_input_t * input,
-				       vlib_cli_command_t * cmd)
+pfcp_session_server_set_command_fn (vlib_main_t * vm,
+				    unformat_input_t * input,
+				    vlib_cli_command_t * cmd)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
   unformat_input_t _line_input, *line_input = &_line_input;
-  u64 seg_size;
-  int rv;
-
-  pssm->prealloc_fifos = 0;
-  pssm->private_segment_size = 0;
-  pssm->fifo_size = 0;
+  u32 prealloc_fifos = pssm->prealloc_fifos;
+  u32 fifo_size = pssm->fifo_size;
+  u64 seg_size = pssm->private_segment_size;
 
   /* Get a line of input. */
   if (!unformat_user (input, unformat_line_input, line_input))
-    goto start_server;
+    return 0;
 
   while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
     {
-      if (unformat (line_input, "prealloc-fifos %d", &pssm->prealloc_fifos))
+      if (unformat (line_input, "prealloc-fifos %d", &prealloc_fifos))
 	;
       else if (unformat (line_input, "private-segment-size %U",
 			 unformat_memory_size, &seg_size))
@@ -817,42 +814,31 @@ pfcp_session_server_create_command_fn (vlib_main_t * vm,
 			       seg_size);
 	      return 0;
 	    }
-	  pssm->private_segment_size = seg_size;
 	}
-      else if (unformat (line_input, "fifo-size %d", &pssm->fifo_size))
-	pssm->fifo_size <<= 10;
-      else if (unformat (line_input, "uri %s", &pssm->uri))
-	;
+      else if (unformat (line_input, "fifo-size %d", &fifo_size))
+	fifo_size <<= 10;
       else
 	return clib_error_return (0, "unknown input `%U'",
 				  format_unformat_error, line_input);
     }
   unformat_free (line_input);
 
-start_server:
-
   if (pssm->my_client_index != (u32) ~ 0)
     return clib_error_return (0, "test pfcp server is already running");
 
-  vnet_session_enable_disable (vm, 1 /* turn on TCP, etc. */ );
+  pssm->prealloc_fifos = prealloc_fifos;
+  pssm->fifo_size = fifo_size;
+  pssm->private_segment_size = seg_size;
 
-  rv = pfcp_session_server_create (vm);
-  switch (rv)
-    {
-    case 0:
-      break;
-    default:
-      return clib_error_return (0, "server_create returned %d", rv);
-    }
   return 0;
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (pfcp_session_server_create_command, static) =
+VLIB_CLI_COMMAND (pfcp_session_server_set_command, static) =
 {
-  .path = "test pfcp server",
-  .short_help = "test pfcp server",
-  .function = pfcp_session_server_create_command_fn,
+  .path = "upf pfcp server set",
+  .short_help = "upf pfcp server set",
+  .function = pfcp_session_server_set_command_fn,
 };
 /* *INDENT-ON* */
 
@@ -863,6 +849,12 @@ pfcp_session_server_main_init (vlib_main_t * vm)
 
   pssm->my_client_index = ~0;
   pssm->vlib_main = vm;
+
+  /* PFPC server defaults */
+  pssm->prealloc_fifos = 0;
+  pssm->fifo_size = 64 << 10;
+  pssm->private_segment_size = 0;
+
   return 0;
 }
 
