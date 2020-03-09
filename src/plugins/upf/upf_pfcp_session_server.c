@@ -14,10 +14,14 @@
 */
 
 #include <vnet/vnet.h>
+#include <vnet/session/session.h>
 #include <vnet/session/application.h>
 #include <vnet/session/application_interface.h>
-#include <vnet/session/session.h>
 #include <vppinfra/tw_timer_2t_1w_2048sl.h>
+
+#include "upf_pfcp.h"
+#include "upf_pfcp_api.h"
+#include "upf_pfcp_server.h"
 
 typedef enum
 {
@@ -115,11 +119,13 @@ pfcp_session_server_session_alloc (u32 thread_index)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
   pfcp_session_t *ps;
+
   pool_get (pssm->sessions[thread_index], ps);
   memset (ps, 0, sizeof (*ps));
   ps->session_index = ps - pssm->sessions[thread_index];
   ps->thread_index = thread_index;
   ps->timer_handle = ~0;
+
   return ps;
 }
 
@@ -127,6 +133,7 @@ static pfcp_session_t *
 pfcp_session_server_session_get (u32 thread_index, u32 ps_index)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+
   if (pool_is_free_index (pssm->sessions[thread_index], ps_index))
     return 0;
   return pool_elt_at_index (pssm->sessions[thread_index], ps_index);
@@ -136,6 +143,7 @@ static void
 pfcp_session_server_session_free (pfcp_session_t * ps)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+
   pool_put (pssm->sessions[ps->thread_index], ps);
   if (CLIB_DEBUG)
     memset (ps, 0xfa, sizeof (*ps));
@@ -145,6 +153,7 @@ static void
 pfcp_session_server_session_lookup_add (u32 thread_index, u32 s_index, u32 ps_index)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+
   vec_validate (pssm->session_to_pfcp_session[thread_index], s_index);
   pssm->session_to_pfcp_session[thread_index][s_index] = ps_index;
 }
@@ -153,6 +162,7 @@ static void
 pfcp_session_server_session_lookup_del (u32 thread_index, u32 s_index)
 {
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+
   pssm->session_to_pfcp_session[thread_index][s_index] = ~0;
 }
 
@@ -167,6 +177,7 @@ pfcp_session_server_session_lookup (u32 thread_index, u32 s_index)
       ps_index = pssm->session_to_pfcp_session[thread_index][s_index];
       return pfcp_session_server_session_get (thread_index, ps_index);
     }
+
   return 0;
 }
 
@@ -439,56 +450,6 @@ out:
   return (0);
 }
 
-static void
-alloc_pfcp_process (pfcp_session_server_args * args)
-{
-  char *name;
-  vlib_node_t *n;
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vlib_main_t *vm = pssm->vlib_main;
-  uword l = vec_len (pssm->free_pfcp_cli_process_node_indices);
-  pfcp_session_server_args **save_args;
-
-  if (vec_len (pssm->free_pfcp_cli_process_node_indices) > 0)
-    {
-      n = vlib_get_node (vm, pssm->free_pfcp_cli_process_node_indices[l - 1]);
-      vlib_node_set_state (vm, n->index, VLIB_NODE_STATE_POLLING);
-      _vec_len (pssm->free_pfcp_cli_process_node_indices) = l - 1;
-    }
-  else
-    {
-      static vlib_node_registration_t r = {
-	.function = pfcp_cli_process,
-	.type = VLIB_NODE_TYPE_PROCESS,
-	.process_log2_n_stack_bytes = 16,
-	.runtime_data_bytes = sizeof (void *),
-      };
-
-      name = (char *) format (0, "pfcp-cli-%d", l);
-      r.name = name;
-      vlib_register_node (vm, &r);
-      vec_free (name);
-
-      n = vlib_get_node (vm, r.index);
-    }
-
-  /* Save the node index in the args. It won't be zero. */
-  args->node_index = n->index;
-
-  /* Save the args (pointer) in the node runtime */
-  save_args = vlib_node_get_runtime_data (vm, n->index);
-  *save_args = clib_mem_alloc (sizeof (*args));
-  clib_memcpy_fast (*save_args, args, sizeof (*args));
-
-  vlib_start_process (vm, n->runtime_index);
-}
-
-static void
-alloc_pfcp_process_callback (void *cb_args)
-{
-  alloc_pfcp_process ((pfcp_session_server_args *) cb_args);
-}
-
 static int
 session_rx_request (pfcp_session_t * ps)
 {
@@ -514,25 +475,88 @@ session_rx_request (pfcp_session_t * ps)
 static int
 pfcp_session_server_rx_callback (session_t * s)
 {
-  pfcp_session_server_args args;
   pfcp_session_t *ps;
-  int rv;
+  int rv = 0;
 
   pfcp_session_server_sessions_reader_lock ();
 
   ps = pfcp_session_server_session_lookup (s->thread_index, s->session_index);
   if (!ps || ps->session_state != PFCP_STATE_ESTABLISHED)
-    return -1;
+    {
+      rv = -1;
+      goto err_unlock;
+    }
 
   rv = session_rx_request (ps);
   if (rv)
-    return rv;
+    goto err_unlock;
+
+  // TBD....
+
+ err_unlock:
+  pfcp_session_server_sessions_reader_unlock ();
+  return rv;
+}
+
+
+static void
+alloc_pfcp_process (pfcp_session_server_args * args)
+{
+  char *name;
+  vlib_node_t *n;
+  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+  vlib_main_t *vm = pssm->vlib_main;
+  uword l = vec_len (pssm->free_pfcp_cli_process_node_indices);
+  pfcp_session_server_args **save_args;
+
+  if (vec_len (pssm->free_pfcp_cli_process_node_indices) > 0)
+    {
+      n = vlib_get_node (vm, pssm->free_pfcp_cli_process_node_indices[l - 1]);
+      vlib_node_set_state (vm, n->index, VLIB_NODE_STATE_POLLING);
+      _vec_len (pssm->free_pfcp_cli_process_node_indices) = l - 1;
+    }
+  else
+    {
+      static vlib_node_registration_t r = {
+	.function = pfcp_cli_process,
+	.type = VLIB_NODE_TYPE_PROCESS,
+	.process_log2_n_stack_bytes = 16,
+	.runtime_data_bytes = sizeof (void *),
+      };
+
+      name = (char *) format (0, "pfcp-session-%d", l);
+      r.name = name;
+      vlib_register_node (vm, &r);
+      vec_free (name);
+
+      n = vlib_get_node (vm, r.index);
+    }
+
+  /* Save the node index in the args. It won't be zero. */
+  args->node_index = n->index;
+
+  /* Save the args (pointer) in the node runtime */
+  save_args = vlib_node_get_runtime_data (vm, n->index);
+  *save_args = clib_mem_alloc (sizeof (*args));
+  clib_memcpy_fast (*save_args, args, sizeof (*args));
+
+  vlib_start_process (vm, n->runtime_index);
+}
+
+static void
+alloc_pfcp_process_callback (void *cb_args)
+{
+  alloc_pfcp_process ((pfcp_session_server_args *) cb_args);
+}
+
+static void
+pfcp_session_server_session_start_thread (pfcp_session_t * ps)
+{
+  pfcp_session_server_args args;
 
   /* send the command to a new/recycled vlib process */
   args.ps_index = ps->session_index;
   args.thread_index = ps->thread_index;
-
-  pfcp_session_server_sessions_reader_unlock ();
 
   /* Send RPC request to main thread */
   if (vlib_get_thread_index () != 0)
@@ -540,7 +564,6 @@ pfcp_session_server_rx_callback (session_t * s)
 			       sizeof (args));
   else
     alloc_pfcp_process (&args);
-  return 0;
 }
 
 static int
@@ -556,7 +579,7 @@ pfcp_session_server_session_accept_callback (session_t * s)
 
   ps = pfcp_session_server_session_alloc (s->thread_index);
   pfcp_session_server_session_lookup_add (s->thread_index, s->session_index,
-				  ps->session_index);
+					  ps->session_index);
   ps->rx_fifo = s->rx_fifo;
   ps->tx_fifo = s->tx_fifo;
   ps->vpp_session_index = s->session_index;
@@ -566,7 +589,10 @@ pfcp_session_server_session_accept_callback (session_t * s)
 
   pfcp_session_server_sessions_writer_unlock ();
 
+  pfcp_session_server_session_start_thread (ps);
+
   s->session_state = SESSION_STATE_READY;
+
   return 0;
 }
 
@@ -631,57 +657,6 @@ static session_cb_vft_t pfcp_session_server_session_cb_vft = {
   .builtin_app_rx_callback = pfcp_session_server_rx_callback,
   .session_reset_callback = pfcp_session_server_session_reset_callback
 };
-
-static int
-pfcp_session_server_attach ()
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  u64 options[APP_OPTIONS_N_OPTIONS];
-  vnet_app_attach_args_t _a, *a = &_a;
-  u32 segment_size = 128 << 20;
-
-  clib_memset (a, 0, sizeof (*a));
-  clib_memset (options, 0, sizeof (options));
-
-  if (pssm->private_segment_size)
-    segment_size = pssm->private_segment_size;
-
-  a->api_client_index = ~0;
-  a->name = format (0, "test_pfcp_session_server");
-  a->session_cb_vft = &pfcp_session_server_session_cb_vft;
-  a->options = options;
-  a->options[APP_OPTIONS_SEGMENT_SIZE] = segment_size;
-  a->options[APP_OPTIONS_RX_FIFO_SIZE] =
-    pssm->fifo_size ? pssm->fifo_size : 8 << 10;
-  a->options[APP_OPTIONS_TX_FIFO_SIZE] =
-    pssm->fifo_size ? pssm->fifo_size : 32 << 10;
-  a->options[APP_OPTIONS_FLAGS] = APP_OPTIONS_FLAGS_IS_BUILTIN;
-  a->options[APP_OPTIONS_PREALLOC_FIFO_PAIRS] = pssm->prealloc_fifos;
-
-  if (vnet_application_attach (a))
-    {
-      vec_free (a->name);
-      clib_warning ("failed to attach server");
-      return -1;
-    }
-  vec_free (a->name);
-  pssm->app_index = a->app_index;
-
-  return 0;
-}
-
-static int
-pfcp_session_server_listen ()
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vnet_listen_args_t _a, *a = &_a;
-  clib_memset (a, 0, sizeof (*a));
-  a->app_index = pssm->app_index;
-  a->uri = "tcp://0.0.0.0/80";
-  if (pssm->uri)
-    a->uri = (char *) pssm->uri;
-  return vnet_bind_uri (a);
-}
 
 static void
 pfcp_session_server_session_cleanup_cb (void *ps_handlep)
@@ -749,6 +724,100 @@ VLIB_REGISTER_NODE (pfcp_session_server_process_node) =
 /* *INDENT-ON* */
 
 static int
+pfcp_server_attach (vlib_main_t * vm)
+{
+  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+  u64 options[APP_OPTIONS_N_OPTIONS];
+  vnet_app_attach_args_t _a, *a = &_a;
+
+  if (pssm->app_index != ~0)
+    return 0;
+
+  vnet_session_enable_disable (vm, 1 /* turn on TCP, etc. */ );
+
+  clib_memset (a, 0, sizeof (*a));
+  clib_memset (options, 0, sizeof (options));
+
+  a->api_client_index = ~0;
+  a->name = format (0, "upf-pfcp-server");
+  a->session_cb_vft = &pfcp_session_server_session_cb_vft;
+  a->options = options;
+  a->options[APP_OPTIONS_SEGMENT_SIZE] = pssm->private_segment_size;
+  a->options[APP_OPTIONS_RX_FIFO_SIZE] = pssm->fifo_size;
+  a->options[APP_OPTIONS_TX_FIFO_SIZE] = pssm->fifo_size;
+  a->options[APP_OPTIONS_FLAGS] = APP_OPTIONS_FLAGS_IS_BUILTIN;
+  a->options[APP_OPTIONS_PREALLOC_FIFO_PAIRS] = pssm->prealloc_fifos;
+
+  if (vnet_application_attach (a))
+     {
+      vec_free (a->name);
+      clib_warning ("failed to attach server");
+      return -1;
+     }
+
+  vec_free (a->name);
+  pssm->app_index = a->app_index;
+
+  return 0;
+}
+
+int
+vnet_upf_pfcp_endpoint_add_del (ip46_address_t * ip, u32 fib_index, u8 add)
+{
+  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
+  upf_main_t *gtm = &upf_main;
+  ip46_address_fib_t key;
+  int rv = 0;
+  uword *p;
+
+  key.addr = *ip;
+  key.fib_index = fib_index;
+
+  p = mhash_get (&gtm->pfcp_endpoint_index, &key);
+
+  if (add)
+    {
+      vnet_listen_args_t _a, *a = &_a;
+
+      if (p)
+	return VNET_API_ERROR_VALUE_EXIST;
+
+      pfcp_server_attach (pssm->vlib_main);
+
+      clib_memset (a, 0, sizeof (*a));
+
+      a->app_index = pssm->app_index;
+      a->sep_ext = (session_endpoint_cfg_t)SESSION_ENDPOINT_CFG_NULL;
+      a->sep_ext.fib_index = fib_index;
+      a->sep_ext.transport_proto = TRANSPORT_PROTO_UDP;
+      a->sep_ext.is_ip4 = ip46_address_is_ip4 (ip);
+      a->sep_ext.ip = *ip;
+      a->sep_ext.port = 8805;
+
+      if ((rv = vnet_listen (a)) == 0)
+	mhash_set (&gtm->pfcp_endpoint_index, &key, a->handle, NULL);
+     }
+   else
+     {
+      vnet_unlisten_args_t _a, *a = &_a;
+
+      if (!p)
+	return VNET_API_ERROR_NO_SUCH_ENTRY;
+
+      clib_memset (a, 0, sizeof (*a));
+
+      a->app_index = pssm->app_index;
+      a->handle = p[0];
+
+      mhash_unset (&gtm->pfcp_endpoint_index, &key, NULL);
+      rv = vnet_unlisten (a);
+     }
+
+  return rv;
+}
+
+#if TBD
+static int
 pfcp_session_server_create (vlib_main_t * vm)
 {
   if (pfcp_session_server_attach ())
@@ -764,6 +833,7 @@ pfcp_session_server_create (vlib_main_t * vm)
 
   return 0;
 }
+#endif
 
 static clib_error_t *
 pfcp_session_server_set_command_fn (vlib_main_t * vm,

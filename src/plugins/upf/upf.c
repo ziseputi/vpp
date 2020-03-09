@@ -73,44 +73,6 @@ upf_enable_disable (upf_main_t * sm, u32 sw_if_index, int enable_disable)
 }
 
 int
-vnet_upf_pfcp_endpoint_add_del (ip46_address_t * ip, u32 fib_index, u8 add)
-{
-  upf_main_t *gtm = &upf_main;
-  ip46_address_fib_t key;
-  upf_pfcp_endpoint_t *ep;
-  uword *p;
-
-  key.addr = *ip;
-  key.fib_index = fib_index;
-
-  p = mhash_get (&gtm->pfcp_endpoint_index, &key);
-
-  if (add)
-    {
-      if (p)
-	return VNET_API_ERROR_VALUE_EXIST;
-
-      pool_get (gtm->pfcp_endpoints, ep);
-      memset (ep, 0, sizeof (*ep));
-
-      ep->key = key;
-
-      mhash_set (&gtm->pfcp_endpoint_index, &ep->key, ep - gtm->pfcp_endpoints, NULL);
-    }
-  else
-    {
-      if (!p)
-	return VNET_API_ERROR_NO_SUCH_ENTRY;
-
-      ep = pool_elt_at_index (gtm->pfcp_endpoints, p[0]);
-      mhash_unset (&gtm->pfcp_endpoint_index, &ep->key, NULL);
-      pool_put (gtm->pfcp_endpoints, ep);
-    }
-
-  return 0;
-}
-
-int
 vnet_upf_upip_add_del (ip4_address_t * ip4, ip6_address_t * ip6,
 		       u8 * name, u8 intf, u32 teid, u32 mask, u8 add)
 {
