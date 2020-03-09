@@ -70,9 +70,7 @@ typedef struct
   /* Sever's event queue */
   svm_queue_t *vl_input_queue;
 
-  /* API client handle */
-  u32 my_client_index;
-
+  /* API application handle */
   u32 app_index;
 
   /* process node index for evnt scheduling */
@@ -789,10 +787,10 @@ vnet_upf_pfcp_endpoint_add_del (ip46_address_t * ip, u32 fib_index, u8 add)
       a->app_index = pssm->app_index;
       a->sep_ext = (session_endpoint_cfg_t)SESSION_ENDPOINT_CFG_NULL;
       a->sep_ext.fib_index = fib_index;
-      a->sep_ext.transport_proto = TRANSPORT_PROTO_UDP;
+      a->sep_ext.transport_proto = TRANSPORT_PROTO_UDPC;
       a->sep_ext.is_ip4 = ip46_address_is_ip4 (ip);
       a->sep_ext.ip = *ip;
-      a->sep_ext.port = 8805;
+      a->sep_ext.port = clib_host_to_net_u16 (8805);
 
       if ((rv = vnet_listen (a)) == 0)
 	mhash_set (&gtm->pfcp_endpoint_index, &key, a->handle, NULL);
@@ -815,25 +813,6 @@ vnet_upf_pfcp_endpoint_add_del (ip46_address_t * ip, u32 fib_index, u8 add)
 
   return rv;
 }
-
-#if TBD
-static int
-pfcp_session_server_create (vlib_main_t * vm)
-{
-  if (pfcp_session_server_attach ())
-    {
-      clib_warning ("failed to attach server");
-      return -1;
-    }
-  if (pfcp_session_server_listen ())
-    {
-      clib_warning ("failed to start listening");
-      return -1;
-    }
-
-  return 0;
-}
-#endif
 
 static clib_error_t *
 pfcp_session_server_set_command_fn (vlib_main_t * vm,
@@ -872,7 +851,7 @@ pfcp_session_server_set_command_fn (vlib_main_t * vm,
     }
   unformat_free (line_input);
 
-  if (pssm->my_client_index != (u32) ~ 0)
+  if (pssm->app_index != (u32) ~ 0)
     return clib_error_return (0, "test pfcp server is already running");
 
   pssm->prealloc_fifos = prealloc_fifos;
@@ -897,9 +876,8 @@ pfcp_session_server_main_init (vlib_main_t * vm)
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
   vlib_thread_main_t *vtm = vlib_get_thread_main ();
   u32 num_threads;
-  vlib_node_t *n;
 
-  pssm->my_client_index = ~0;
+  pssm->app_index = ~0;
   pssm->vlib_main = vm;
 
   /* PFPC server defaults */
@@ -920,8 +898,6 @@ pfcp_session_server_main_init (vlib_main_t * vm)
 				    1 /* timer interval */ , ~0);
   vlib_node_set_state (vm, pfcp_session_server_process_node.index,
 		       VLIB_NODE_STATE_POLLING);
-  n = vlib_get_node (vm, pfcp_session_server_process_node.index);
-  vlib_start_process (vm, n->runtime_index);
 
   return 0;
 }

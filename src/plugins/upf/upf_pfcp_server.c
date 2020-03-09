@@ -1424,11 +1424,6 @@ pfcp_server_main_init (vlib_main_t * vm)
   TW (tw_timer_wheel_init) (&psm->timer, NULL,
 			    TW_SECS_PER_CLOCK /* 10ms timer interval */ , ~0);
 
-  udp_register_dst_port (vm, UDP_DST_PORT_PFCP,
-			 sx4_input_node.index, /* is_ip4 */ 1);
-  udp_register_dst_port (vm, UDP_DST_PORT_PFCP,
-			 sx6_input_node.index, /* is_ip4 */ 0);
-
   gtp_debug ("PFCP: start_time: %p, %d, %x.", psm, psm->start_time,
 	     psm->start_time);
   return 0;
