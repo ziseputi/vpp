@@ -35,6 +35,12 @@ typedef struct
   u64 node_index;
 } pfcp_session_server_args;
 
+typedef struct
+{
+  app_session_transport_t at;
+  u8 buffer[];
+} pfcp_session_rx_t;
+
 typedef enum
 {
   PFCP_STATE_CLOSED,
@@ -49,7 +55,6 @@ typedef struct
   foreach_app_session_field
 #undef _
   u32 thread_index;
-  u8 *rx_buf;
   u32 vpp_session_index;
   u64 vpp_session_handle;
   u32 timer_handle;
@@ -65,7 +70,7 @@ typedef struct
 
   uword *handler_by_get_request;
 
-  u32 *free_pfcp_cli_process_node_indices;
+  u32 *free_pfcp_session_process_node_indices;
 
   /* Sever's event queue */
   svm_queue_t *vl_input_queue;
@@ -207,7 +212,6 @@ pfcp_session_server_session_cleanup (pfcp_session_t * ps)
   if (!ps)
     return;
   pfcp_session_server_session_lookup_del (ps->thread_index, ps->vpp_session_index);
-  vec_free (ps->rx_buf);
   pfcp_session_server_session_timer_stop (ps);
   pfcp_session_server_session_free (ps);
 }
@@ -221,6 +225,7 @@ pfcp_session_server_session_disconnect (pfcp_session_t * ps)
   vnet_disconnect_session (a);
 }
 
+#if TBD
 static void
 pfcp_process_free (pfcp_session_server_args * args)
 {
@@ -246,39 +251,11 @@ pfcp_process_free (pfcp_session_server_args * args)
   vlib_node_set_state (vm, rt->node_index, VLIB_NODE_STATE_DISABLED);
 
   /* add node index to the freelist */
-  vec_add1 (pssm->free_pfcp_cli_process_node_indices, node_index);
+  vec_add1 (pssm->free_pfcp_session_process_node_indices, node_index);
 }
+#endif
 
-/* *INDENT-OFF* */
-static const char *pfcp_ok =
-    "PFCP/1.1 200 OK\r\n";
-
-static const char *pfcp_response =
-    "Content-Type: text/html\r\n"
-    "Expires: Mon, 11 Jan 1970 10:10:10 GMT\r\n"
-    "Connection: close \r\n"
-    "Pragma: no-cache\r\n"
-    "Content-Length: %d\r\n\r\n%s";
-
-static const char *pfcp_error_template =
-    "PFCP/1.1 %s\r\n"
-    "Content-Type: text/html\r\n"
-    "Expires: Mon, 11 Jan 1970 10:10:10 GMT\r\n"
-    "Connection: close\r\n"
-    "Pragma: no-cache\r\n"
-    "Content-Length: 0\r\n\r\n";
-
-/* Header, including incantation to suppress favicon.ico requests */
-static const char *html_header_template =
-    "<html><head><title>%v</title></head>"
-    "<link rel=\"icon\" href=\"data:,\">"
-    "<body><pre>";
-
-static const char *html_footer =
-    "</pre></body></html>\r\n";
-
-/* *INDENT-ON* */
-
+#ifdef TBD
 static void
 pfcp_cli_output (uword arg, u8 * buffer, uword buffer_bytes)
 {
@@ -294,6 +271,7 @@ pfcp_cli_output (uword arg, u8 * buffer, uword buffer_bytes)
 
   *output_vecp = output_vec;
 }
+#endif
 
 void
 send_data (pfcp_session_t * ps, u8 * data)
@@ -348,6 +326,7 @@ send_data (pfcp_session_t * ps, u8 * data)
     }
 }
 
+#ifdef TBD
 static void
 send_error (pfcp_session_t * ps, char *str)
 {
@@ -357,11 +336,13 @@ send_error (pfcp_session_t * ps, char *str)
   send_data (ps, data);
   vec_free (data);
 }
+#endif
 
 static uword
-pfcp_cli_process (vlib_main_t * vm, vlib_node_runtime_t * rt,
+pfcp_session_process (vlib_main_t * vm, vlib_node_runtime_t * rt,
 		  vlib_frame_t * f)
 {
+#ifdef TBD
   u8 *request = 0, *reply = 0, *pfcp = 0, *html = 0;
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
   pfcp_session_server_args **save_args;
@@ -446,27 +427,39 @@ out:
 
   pfcp_process_free (args);
   return (0);
+#endif
+  return 0;
 }
 
 static int
 session_rx_request (pfcp_session_t * ps)
 {
-  u32 max_dequeue, cursize;
-  int n_read;
+  session_dgram_pre_hdr_t ph;
+  pfcp_session_rx_t *rx;
+  u32 max_deq;
+  int len, rv;
 
-  cursize = vec_len (ps->rx_buf);
-  max_dequeue = svm_fifo_max_dequeue_cons (ps->rx_fifo);
-  if (PREDICT_FALSE (max_dequeue == 0))
+  max_deq = svm_fifo_max_dequeue_cons (ps->rx_fifo);
+  if (PREDICT_FALSE (max_deq < sizeof (session_dgram_hdr_t)))
     return -1;
 
-  vec_validate (ps->rx_buf, cursize + max_dequeue - 1);
-  n_read = app_recv_stream_raw (ps->rx_fifo, ps->rx_buf + cursize,
-				max_dequeue, 0, 0 /* peek */ );
-  ASSERT (n_read == max_dequeue);
-  if (svm_fifo_is_empty_cons (ps->rx_fifo))
-    svm_fifo_unset_event (ps->rx_fifo);
+  svm_fifo_peek (ps->rx_fifo, 0, sizeof (ph), (u8 *) & ph);
+  ASSERT (ph.data_length >= ph.data_offset);
 
-  _vec_len (ps->rx_buf) = cursize + n_read;
+  len = ph.data_length - ph.data_offset;
+  rx = clib_mem_alloc (sizeof (*rx) + len);
+
+  if (!ph.data_offset)
+    svm_fifo_peek (ps->rx_fifo, sizeof (ph), sizeof (rx->at), (u8 *) &rx->at);
+
+  rv = svm_fifo_peek (ps->rx_fifo, ph.data_offset + SESSION_CONN_HDR_LEN, len, &rx->buffer[0]);
+
+  ph.data_offset += rv;
+  if (ph.data_offset == ph.data_length)
+    svm_fifo_dequeue_drop (ps->rx_fifo, ph.data_length + SESSION_CONN_HDR_LEN);
+  else
+    svm_fifo_overwrite_head (ps->rx_fifo, (u8 *) & ph, sizeof (ph));
+
   return 0;
 }
 
@@ -485,11 +478,13 @@ pfcp_session_server_rx_callback (session_t * s)
       goto err_unlock;
     }
 
-  rv = session_rx_request (ps);
-  if (rv)
-    goto err_unlock;
+  /* read as much as we can */
+  do {
+    rv = session_rx_request (ps);
+  } while (rv == 0);
 
-  // TBD....
+  svm_fifo_unset_event (ps->rx_fifo);
+  rv = 0;
 
  err_unlock:
   pfcp_session_server_sessions_reader_unlock ();
@@ -504,19 +499,19 @@ alloc_pfcp_process (pfcp_session_server_args * args)
   vlib_node_t *n;
   pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
   vlib_main_t *vm = pssm->vlib_main;
-  uword l = vec_len (pssm->free_pfcp_cli_process_node_indices);
+  uword l = vec_len (pssm->free_pfcp_session_process_node_indices);
   pfcp_session_server_args **save_args;
 
-  if (vec_len (pssm->free_pfcp_cli_process_node_indices) > 0)
+  if (vec_len (pssm->free_pfcp_session_process_node_indices) > 0)
     {
-      n = vlib_get_node (vm, pssm->free_pfcp_cli_process_node_indices[l - 1]);
+      n = vlib_get_node (vm, pssm->free_pfcp_session_process_node_indices[l - 1]);
       vlib_node_set_state (vm, n->index, VLIB_NODE_STATE_POLLING);
-      _vec_len (pssm->free_pfcp_cli_process_node_indices) = l - 1;
+      _vec_len (pssm->free_pfcp_session_process_node_indices) = l - 1;
     }
   else
     {
       static vlib_node_registration_t r = {
-	.function = pfcp_cli_process,
+	.function = pfcp_session_process,
 	.type = VLIB_NODE_TYPE_PROCESS,
 	.process_log2_n_stack_bytes = 16,
 	.runtime_data_bytes = sizeof (void *),
