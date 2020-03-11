@@ -27,6 +27,15 @@
 #define PFCP_SERVER_T1       1
 #define PFCP_SERVER_RESPONSE 2
 
+extern vlib_node_registration_t pfcp_api_process_node;
+
+typedef enum
+{
+  EVENT_RX = 1,
+  EVENT_TX,
+  EVENT_URR,
+} pfcp_process_event_t;
+
 typedef struct
 {
   /* Required for pool_get_aligned  */
@@ -36,14 +45,14 @@ typedef struct
   {
     struct
     {
-      u32 seq_no;
-      u32 fib_index;
-
       struct
       {
 	ip46_address_t address;
 	u16 port;
       } rmt;
+
+      u32 seq_no;
+      session_handle_t session_handle;
     };
     u64 request_key[4];
   };
@@ -54,7 +63,6 @@ typedef struct
     u16 port;
   } lcl;
 
-  u32 pfcp_endpoint;
   u32 node;
   u32 session_index;
 
@@ -109,9 +117,6 @@ typedef struct
 
 extern pfcp_server_main_t pfcp_server_main;
 
-extern vlib_node_registration_t sx4_input_node;
-extern vlib_node_registration_t sx6_input_node;
-
 #define UDP_DST_PORT_PFCP 8805
 
 void upf_pfcp_session_stop_up_inactivity_timer(urr_time_t * t);
@@ -131,8 +136,6 @@ int upf_pfcp_send_response (pfcp_msg_t * req, u64 cp_seid, u8 type,
 
 void upf_pfcp_server_session_usage_report (upf_event_urr_data_t * uev);
 
-void upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4);
-
 clib_error_t *pfcp_server_main_init (vlib_main_t * vm);
 
 void upf_ip_lookup_tx (u32 bi, int is_ip4);
@@ -144,7 +147,6 @@ init_pfcp_msg (pfcp_msg_t * m)
 
   memset (m, 0, sizeof (*m));
   m->is_valid_pool_item = is_valid_pool_item;
-  m->pfcp_endpoint = ~0;
   m->node = ~0;
 }
 

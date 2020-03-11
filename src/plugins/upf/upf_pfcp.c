@@ -38,6 +38,7 @@
 #include "upf_adf.h"
 #include "upf_pfcp.h"
 #include "upf_pfcp_api.h"
+#include "upf_pfcp_server.h"
 
 #if CLIB_DEBUG > 2
 #define gtp_debug clib_warning
@@ -355,8 +356,9 @@ pfcp_get_association (pfcp_node_id_t * node_id)
 }
 
 upf_node_assoc_t *
-pfcp_new_association (u32 fib_index, ip46_address_t * lcl_addr,
-		    ip46_address_t * rmt_addr, pfcp_node_id_t * node_id)
+pfcp_new_association (session_handle_t session_handle,
+		      ip46_address_t * lcl_addr, ip46_address_t * rmt_addr,
+		      pfcp_node_id_t * node_id)
 {
   upf_main_t *gtm = &upf_main;
   upf_node_assoc_t *n;
@@ -365,7 +367,7 @@ pfcp_new_association (u32 fib_index, ip46_address_t * lcl_addr,
   memset (n, 0, sizeof (*n));
   n->sessions = ~0;
   n->node_id = *node_id;
-  n->fib_index = fib_index;
+  n->session_handle = session_handle;
   n->lcl_addr = *lcl_addr;
   n->rmt_addr = *rmt_addr;
 
@@ -500,9 +502,9 @@ node_assoc_detach_session (upf_session_t * sx)
 }
 
 upf_session_t *
-pfcp_create_session (upf_node_assoc_t * assoc, int pfcp_fib_index,
-		   const ip46_address_t * up_address, uint64_t cp_seid,
-		   const ip46_address_t * cp_address)
+pfcp_create_session (upf_node_assoc_t * assoc,
+		     const ip46_address_t * up_address, uint64_t cp_seid,
+		     const ip46_address_t * cp_address)
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   vlib_main_t *vm = vlib_get_main ();
@@ -519,7 +521,6 @@ pfcp_create_session (upf_node_assoc_t * assoc, int pfcp_fib_index,
   pool_get_aligned (gtm->sessions, sx, CLIB_CACHE_LINE_BYTES);
   memset (sx, 0, sizeof (*sx));
 
-  sx->fib_index = pfcp_fib_index;
   sx->up_address = *up_address;
   sx->cp_seid = cp_seid;
   sx->cp_address = *cp_address;

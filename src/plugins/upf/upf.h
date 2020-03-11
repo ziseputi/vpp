@@ -37,6 +37,7 @@
 #include <vnet/adj/adj_types.h>
 #include <vnet/fib/fib_table.h>
 #include <vnet/policer/policer.h>
+#include <vnet/session/session_types.h>
 
 #include "pfcp.h"
 #include "flowtable.h"
@@ -572,7 +573,6 @@ typedef struct
   clib_spinlock_t lock;
   f64 last_ul_traffic;
 
-  int fib_index;
   ip46_address_t up_address;
   u64 cp_seid;
   ip46_address_t cp_address;
@@ -703,7 +703,7 @@ typedef struct
   pfcp_node_id_t node_id;
   pfcp_recovery_time_stamp_t recovery_time_stamp;
 
-  u32 fib_index;
+  session_handle_t session_handle;
   ip46_address_t rmt_addr;
   ip46_address_t lcl_addr;
 

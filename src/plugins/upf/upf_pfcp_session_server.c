@@ -23,54 +23,18 @@
 #include "upf_pfcp_api.h"
 #include "upf_pfcp_server.h"
 
-typedef enum
-{
-  EVENT_WAKEUP = 1,
-} pfcp_process_event_t;
+#if CLIB_DEBUG > 1
+#define upf_debug clib_warning
+#else
+#define upf_debug(...)				\
+  do { } while (0)
+#endif
 
 typedef struct
 {
-  u32 ps_index;
-  u32 thread_index;
-  u64 node_index;
-} pfcp_session_server_args;
-
-typedef struct
-{
-  app_session_transport_t at;
-  u8 buffer[];
-} pfcp_session_rx_t;
-
-typedef enum
-{
-  PFCP_STATE_CLOSED,
-  PFCP_STATE_ESTABLISHED,
-  PFCP_STATE_OK_SENT,
-} pfcp_session_state_t;
-
-typedef struct
-{
-  CLIB_CACHE_LINE_ALIGN_MARK (cacheline0);
-#define _(type, name) type name;
-  foreach_app_session_field
-#undef _
-  u32 thread_index;
-  u32 vpp_session_index;
-  u64 vpp_session_handle;
-  u32 timer_handle;
-} pfcp_session_t;
-
-typedef struct
-{
-  pfcp_session_t **sessions;
-  clib_rwlock_t sessions_lock;
-  u32 **session_to_pfcp_session;
-
   svm_msg_q_t **vpp_queue;
 
   uword *handler_by_get_request;
-
-  u32 *free_pfcp_session_process_node_indices;
 
   /* Sever's event queue */
   svm_queue_t *vl_input_queue;
@@ -87,544 +51,90 @@ typedef struct
   u32 prealloc_fifos;
   u32 private_segment_size;
   u32 fifo_size;
-  u8 *uri;
   vlib_main_t *vlib_main;
 } pfcp_session_server_main_t;
 
 pfcp_session_server_main_t pfcp_session_server_main;
 
-static void
-pfcp_session_server_sessions_reader_lock (void)
-{
-  clib_rwlock_reader_lock (&pfcp_session_server_main.sessions_lock);
-}
-
-static void
-pfcp_session_server_sessions_reader_unlock (void)
-{
-  clib_rwlock_reader_unlock (&pfcp_session_server_main.sessions_lock);
-}
-
-static void
-pfcp_session_server_sessions_writer_lock (void)
-{
-  clib_rwlock_writer_lock (&pfcp_session_server_main.sessions_lock);
-}
-
-static void
-pfcp_session_server_sessions_writer_unlock (void)
-{
-  clib_rwlock_writer_unlock (&pfcp_session_server_main.sessions_lock);
-}
-
-static pfcp_session_t *
-pfcp_session_server_session_alloc (u32 thread_index)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  pfcp_session_t *ps;
-
-  pool_get (pssm->sessions[thread_index], ps);
-  memset (ps, 0, sizeof (*ps));
-  ps->session_index = ps - pssm->sessions[thread_index];
-  ps->thread_index = thread_index;
-  ps->timer_handle = ~0;
-
-  return ps;
-}
-
-static pfcp_session_t *
-pfcp_session_server_session_get (u32 thread_index, u32 ps_index)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-
-  if (pool_is_free_index (pssm->sessions[thread_index], ps_index))
-    return 0;
-  return pool_elt_at_index (pssm->sessions[thread_index], ps_index);
-}
-
-static void
-pfcp_session_server_session_free (pfcp_session_t * ps)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-
-  pool_put (pssm->sessions[ps->thread_index], ps);
-  if (CLIB_DEBUG)
-    memset (ps, 0xfa, sizeof (*ps));
-}
-
-static void
-pfcp_session_server_session_lookup_add (u32 thread_index, u32 s_index, u32 ps_index)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-
-  vec_validate (pssm->session_to_pfcp_session[thread_index], s_index);
-  pssm->session_to_pfcp_session[thread_index][s_index] = ps_index;
-}
-
-static void
-pfcp_session_server_session_lookup_del (u32 thread_index, u32 s_index)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-
-  pssm->session_to_pfcp_session[thread_index][s_index] = ~0;
-}
-
-static pfcp_session_t *
-pfcp_session_server_session_lookup (u32 thread_index, u32 s_index)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  u32 ps_index;
-
-  if (s_index < vec_len (pssm->session_to_pfcp_session[thread_index]))
-    {
-      ps_index = pssm->session_to_pfcp_session[thread_index][s_index];
-      return pfcp_session_server_session_get (thread_index, ps_index);
-    }
-
-  return 0;
-}
-
-
-static void
-pfcp_session_server_session_timer_start (pfcp_session_t * ps)
-{
-  u32 ps_handle;
-  ps_handle = ps->thread_index << 24 | ps->session_index;
-  clib_spinlock_lock (&pfcp_session_server_main.tw_lock);
-  ps->timer_handle = tw_timer_start_2t_1w_2048sl (&pfcp_session_server_main.tw,
-						  ps_handle, 0, 60);
-  clib_spinlock_unlock (&pfcp_session_server_main.tw_lock);
-}
-
-static void
-pfcp_session_server_session_timer_stop (pfcp_session_t * ps)
-{
-  if (ps->timer_handle == ~0)
-    return;
-  clib_spinlock_lock (&pfcp_session_server_main.tw_lock);
-  tw_timer_stop_2t_1w_2048sl (&pfcp_session_server_main.tw, ps->timer_handle);
-  clib_spinlock_unlock (&pfcp_session_server_main.tw_lock);
-}
-
-static void
-pfcp_session_server_session_cleanup (pfcp_session_t * ps)
-{
-  if (!ps)
-    return;
-  pfcp_session_server_session_lookup_del (ps->thread_index, ps->vpp_session_index);
-  pfcp_session_server_session_timer_stop (ps);
-  pfcp_session_server_session_free (ps);
-}
-
-static void
-pfcp_session_server_session_disconnect (pfcp_session_t * ps)
-{
-  vnet_disconnect_args_t _a = { 0 }, *a = &_a;
-  a->handle = ps->vpp_session_handle;
-  a->app_index = pfcp_session_server_main.app_index;
-  vnet_disconnect_session (a);
-}
-
-#if TBD
-static void
-pfcp_process_free (pfcp_session_server_args * args)
-{
-  vlib_node_runtime_t *rt;
-  vlib_main_t *vm = &vlib_global_main;
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vlib_node_t *n;
-  u32 node_index;
-  pfcp_session_server_args **save_args;
-
-  node_index = args->node_index;
-  ASSERT (node_index != 0);
-
-  n = vlib_get_node (vm, node_index);
-  rt = vlib_node_get_runtime (vm, n->index);
-  save_args = vlib_node_get_runtime_data (vm, n->index);
-
-  /* Reset process session pointer */
-  clib_mem_free (*save_args);
-  *save_args = 0;
-
-  /* Turn off the process node */
-  vlib_node_set_state (vm, rt->node_index, VLIB_NODE_STATE_DISABLED);
-
-  /* add node index to the freelist */
-  vec_add1 (pssm->free_pfcp_session_process_node_indices, node_index);
-}
-#endif
-
-#ifdef TBD
-static void
-pfcp_cli_output (uword arg, u8 * buffer, uword buffer_bytes)
-{
-  u8 **output_vecp = (u8 **) arg;
-  u8 *output_vec;
-  u32 offset;
-
-  output_vec = *output_vecp;
-
-  offset = vec_len (output_vec);
-  vec_validate (output_vec, offset + buffer_bytes - 1);
-  clib_memcpy_fast (output_vec + offset, buffer, buffer_bytes);
-
-  *output_vecp = output_vec;
-}
-#endif
-
-void
-send_data (pfcp_session_t * ps, u8 * data)
-{
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vnet_disconnect_args_t _a = { 0 }, *a = &_a;
-  vlib_main_t *vm = vlib_get_main ();
-  f64 last_sent_timer = vlib_time_now (vm);
-  u32 offset, bytes_to_send;
-  f64 delay = 10e-3;
-
-  bytes_to_send = vec_len (data);
-  offset = 0;
-
-  while (bytes_to_send > 0)
-    {
-      int actual_transfer;
-
-      actual_transfer = svm_fifo_enqueue
-	(ps->tx_fifo, bytes_to_send, data + offset);
-
-      /* Made any progress? */
-      if (actual_transfer <= 0)
-	{
-	  pfcp_session_server_sessions_reader_unlock ();
-	  vlib_process_suspend (vm, delay);
-	  pfcp_session_server_sessions_reader_lock ();
-
-	  /* 10s deadman timer */
-	  if (vlib_time_now (vm) > last_sent_timer + 10.0)
-	    {
-	      a->handle = ps->vpp_session_handle;
-	      a->app_index = pssm->app_index;
-	      vnet_disconnect_session (a);
-	      break;
-	    }
-	  /* Exponential backoff, within reason */
-	  if (delay < 1.0)
-	    delay = delay * 2.0;
-	}
-      else
-	{
-	  last_sent_timer = vlib_time_now (vm);
-	  offset += actual_transfer;
-	  bytes_to_send -= actual_transfer;
-
-	  if (svm_fifo_set_event (ps->tx_fifo))
-	    session_send_io_evt_to_thread (ps->tx_fifo,
-					   SESSION_IO_EVT_TX_FLUSH);
-	  delay = 10e-3;
-	}
-    }
-}
-
-#ifdef TBD
-static void
-send_error (pfcp_session_t * ps, char *str)
-{
-  u8 *data;
-
-  data = format (0, pfcp_error_template, str);
-  send_data (ps, data);
-  vec_free (data);
-}
-#endif
-
-static uword
-pfcp_session_process (vlib_main_t * vm, vlib_node_runtime_t * rt,
-		  vlib_frame_t * f)
-{
-#ifdef TBD
-  u8 *request = 0, *reply = 0, *pfcp = 0, *html = 0;
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  pfcp_session_server_args **save_args;
-  pfcp_session_server_args *args;
-  unformat_input_t input;
-  pfcp_session_t *ps;
-  int i;
-
-  save_args = vlib_node_get_runtime_data (pssm->vlib_main, rt->node_index);
-  args = *save_args;
-
-  pfcp_session_server_sessions_reader_lock ();
-
-  ps = pfcp_session_server_session_get (args->thread_index, args->ps_index);
-  ASSERT (ps);
-
-  request = ps->rx_buf;
-  if (vec_len (request) < 7)
-    {
-      send_error (ps, "400 Bad Request");
-      goto out;
-    }
-
-  for (i = 0; i < vec_len (request) - 4; i++)
-    {
-      if (request[i] == 'G' &&
-	  request[i + 1] == 'E' &&
-	  request[i + 2] == 'T' && request[i + 3] == ' ')
-	goto found;
-    }
-bad_request:
-  send_error (ps, "400 Bad Request");
-  goto out;
-
-found:
-  /* Lose "GET " */
-  vec_delete (request, i + 5, 0);
-
-  /* Replace slashes with spaces, stop at the end of the path */
-  i = 0;
-  while (1)
-    {
-      if (request[i] == '/')
-	request[i] = ' ';
-      else if (request[i] == ' ')
-	{
-	  /* vlib_cli_input is vector-based, no need for a NULL */
-	  _vec_len (request) = i;
-	  break;
-	}
-      i++;
-      /* Should never happen */
-      if (i == vec_len (request))
-	goto bad_request;
-    }
-
-  /* Generate the html header */
-  html = format (0, html_header_template, request /* title */ );
-
-  /* Run the command */
-  unformat_init_vector (&input, vec_dup (request));
-  vlib_cli_input (vm, &input, pfcp_cli_output, (uword) & reply);
-  unformat_free (&input);
-  request = 0;
-
-  /* Generate the html page */
-  html = format (html, "%v", reply);
-  html = format (html, html_footer);
-  /* And the pfcp reply */
-  pfcp = format (0, pfcp_ok);
-  pfcp = format (pfcp, pfcp_response, vec_len (html), html);
-
-  /* Send it */
-  send_data (ps, pfcp);
-
-out:
-  /* Cleanup */
-  pfcp_session_server_sessions_reader_unlock ();
-  vec_free (reply);
-  vec_free (html);
-  vec_free (pfcp);
-
-  pfcp_process_free (args);
-  return (0);
-#endif
-  return 0;
-}
-
-static int
-session_rx_request (pfcp_session_t * ps)
-{
-  session_dgram_pre_hdr_t ph;
-  pfcp_session_rx_t *rx;
-  u32 max_deq;
-  int len, rv;
-
-  max_deq = svm_fifo_max_dequeue_cons (ps->rx_fifo);
-  if (PREDICT_FALSE (max_deq < sizeof (session_dgram_hdr_t)))
-    return -1;
-
-  svm_fifo_peek (ps->rx_fifo, 0, sizeof (ph), (u8 *) & ph);
-  ASSERT (ph.data_length >= ph.data_offset);
-
-  len = ph.data_length - ph.data_offset;
-  rx = clib_mem_alloc (sizeof (*rx) + len);
-
-  if (!ph.data_offset)
-    svm_fifo_peek (ps->rx_fifo, sizeof (ph), sizeof (rx->at), (u8 *) &rx->at);
-
-  rv = svm_fifo_peek (ps->rx_fifo, ph.data_offset + SESSION_CONN_HDR_LEN, len, &rx->buffer[0]);
-
-  ph.data_offset += rv;
-  if (ph.data_offset == ph.data_length)
-    svm_fifo_dequeue_drop (ps->rx_fifo, ph.data_length + SESSION_CONN_HDR_LEN);
-  else
-    svm_fifo_overwrite_head (ps->rx_fifo, (u8 *) & ph, sizeof (ph));
-
-  return 0;
-}
-
 static int
 pfcp_session_server_rx_callback (session_t * s)
 {
-  pfcp_session_t *ps;
-  int rv = 0;
+  upf_main_t *gtm = &upf_main;
+  session_dgram_pre_hdr_t ph;
+  pfcp_msg_t *msg;
+  u32 max_deq;
+  int len, rv;
 
-  pfcp_session_server_sessions_reader_lock ();
+  max_deq = svm_fifo_max_dequeue_cons (s->rx_fifo);
+  if (PREDICT_FALSE (max_deq < sizeof (session_dgram_hdr_t)))
+    return -1;
 
-  ps = pfcp_session_server_session_lookup (s->thread_index, s->session_index);
-  if (!ps || ps->session_state != PFCP_STATE_ESTABLISHED)
+  svm_fifo_peek (s->rx_fifo, 0, sizeof (ph), (u8 *) & ph);
+  ASSERT (ph.data_length >= ph.data_offset);
+
+  len = ph.data_length - ph.data_offset;
+  msg = clib_mem_alloc_aligned_no_fail (sizeof (*msg), CLIB_CACHE_LINE_BYTES);
+  memset (msg, 0, sizeof (*msg));
+
+  msg->session_handle = session_handle (s);
+
+  if (!ph.data_offset)
     {
-      rv = -1;
-      goto err_unlock;
+      app_session_transport_t at;
+
+      svm_fifo_peek (s->rx_fifo, sizeof (ph), sizeof (at), (u8 *) &at);
+
+      msg->lcl.address = at.lcl_ip;
+      msg->rmt.address = at.rmt_ip;
+      msg->lcl.port = at.lcl_port;
+      msg->rmt.port = at.rmt_port;
+
+      if (at.is_ip4)
+	{
+	  ip46_address_mask_ip4 (&msg->lcl.address);
+	  ip46_address_mask_ip4 (&msg->rmt.address);
+	}
     }
 
-  /* read as much as we can */
-  do {
-    rv = session_rx_request (ps);
-  } while (rv == 0);
+  vec_validate (msg->data, len);
+  rv = svm_fifo_peek (s->rx_fifo, ph.data_offset + SESSION_CONN_HDR_LEN, len, msg->data);
 
-  svm_fifo_unset_event (ps->rx_fifo);
-  rv = 0;
-
- err_unlock:
-  pfcp_session_server_sessions_reader_unlock ();
-  return rv;
-}
-
-
-static void
-alloc_pfcp_process (pfcp_session_server_args * args)
-{
-  char *name;
-  vlib_node_t *n;
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vlib_main_t *vm = pssm->vlib_main;
-  uword l = vec_len (pssm->free_pfcp_session_process_node_indices);
-  pfcp_session_server_args **save_args;
-
-  if (vec_len (pssm->free_pfcp_session_process_node_indices) > 0)
-    {
-      n = vlib_get_node (vm, pssm->free_pfcp_session_process_node_indices[l - 1]);
-      vlib_node_set_state (vm, n->index, VLIB_NODE_STATE_POLLING);
-      _vec_len (pssm->free_pfcp_session_process_node_indices) = l - 1;
-    }
+  ph.data_offset += rv;
+  if (ph.data_offset == ph.data_length)
+    svm_fifo_dequeue_drop (s->rx_fifo, ph.data_length + SESSION_CONN_HDR_LEN);
   else
-    {
-      static vlib_node_registration_t r = {
-	.function = pfcp_session_process,
-	.type = VLIB_NODE_TYPE_PROCESS,
-	.process_log2_n_stack_bytes = 16,
-	.runtime_data_bytes = sizeof (void *),
-      };
+    svm_fifo_overwrite_head (s->rx_fifo, (u8 *) & ph, sizeof (ph));
 
-      name = (char *) format (0, "pfcp-session-%d", l);
-      r.name = name;
-      vlib_register_node (vm, &r);
-      vec_free (name);
+  upf_debug ("sending event %d, %p %U:%d - %U:%d, data %p",
+	     ph.data_offset, msg,
+	     format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->rmt.port),
+	     format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->lcl.port), msg->data);
 
-      n = vlib_get_node (vm, r.index);
-    }
+  vlib_process_signal_event_mt (gtm->vlib_main, pfcp_api_process_node.index, EVENT_RX,
+				(uword) msg);
 
-  /* Save the node index in the args. It won't be zero. */
-  args->node_index = n->index;
-
-  /* Save the args (pointer) in the node runtime */
-  save_args = vlib_node_get_runtime_data (vm, n->index);
-  *save_args = clib_mem_alloc (sizeof (*args));
-  clib_memcpy_fast (*save_args, args, sizeof (*args));
-
-  vlib_start_process (vm, n->runtime_index);
-}
-
-static void
-alloc_pfcp_process_callback (void *cb_args)
-{
-  alloc_pfcp_process ((pfcp_session_server_args *) cb_args);
-}
-
-static void
-pfcp_session_server_session_start_thread (pfcp_session_t * ps)
-{
-  pfcp_session_server_args args;
-
-  /* send the command to a new/recycled vlib process */
-  args.ps_index = ps->session_index;
-  args.thread_index = ps->thread_index;
-
-  /* Send RPC request to main thread */
-  if (vlib_get_thread_index () != 0)
-    vlib_rpc_call_main_thread (alloc_pfcp_process_callback, (u8 *) & args,
-			       sizeof (args));
-  else
-    alloc_pfcp_process (&args);
+  return 0;
 }
 
 static int
 pfcp_session_server_session_accept_callback (session_t * s)
 {
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  pfcp_session_t *ps;
-
-  pssm->vpp_queue[s->thread_index] =
-    session_main_get_vpp_event_queue (s->thread_index);
-
-  pfcp_session_server_sessions_writer_lock ();
-
-  ps = pfcp_session_server_session_alloc (s->thread_index);
-  pfcp_session_server_session_lookup_add (s->thread_index, s->session_index,
-					  ps->session_index);
-  ps->rx_fifo = s->rx_fifo;
-  ps->tx_fifo = s->tx_fifo;
-  ps->vpp_session_index = s->session_index;
-  ps->vpp_session_handle = session_handle (s);
-  ps->session_state = PFCP_STATE_ESTABLISHED;
-  pfcp_session_server_session_timer_start (ps);
-
-  pfcp_session_server_sessions_writer_unlock ();
-
-  pfcp_session_server_session_start_thread (ps);
-
-  s->session_state = SESSION_STATE_READY;
-
-  return 0;
+  clib_warning ("called...");
+  return -1;
 }
 
 static void
 pfcp_session_server_session_disconnect_callback (session_t * s)
 {
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vnet_disconnect_args_t _a = { 0 }, *a = &_a;
-  pfcp_session_t *ps;
-
-  pfcp_session_server_sessions_writer_lock ();
-
-  ps = pfcp_session_server_session_lookup (s->thread_index, s->session_index);
-  pfcp_session_server_session_cleanup (ps);
-
-  pfcp_session_server_sessions_writer_unlock ();
-
-  a->handle = session_handle (s);
-  a->app_index = pssm->app_index;
-  vnet_disconnect_session (a);
+  clib_warning ("called...");
 }
 
 static void
 pfcp_session_server_session_reset_callback (session_t * s)
 {
-  pfcp_session_server_main_t *pssm = &pfcp_session_server_main;
-  vnet_disconnect_args_t _a = { 0 }, *a = &_a;
-  pfcp_session_t *ps;
-
-  pfcp_session_server_sessions_writer_lock ();
-
-  ps = pfcp_session_server_session_lookup (s->thread_index, s->session_index);
-  pfcp_session_server_session_cleanup (ps);
-
-  pfcp_session_server_sessions_writer_unlock ();
-
-  a->handle = session_handle (s);
-  a->app_index = pssm->app_index;
-  vnet_disconnect_session (a);
+  clib_warning ("called...");
 }
 
 static int
@@ -654,15 +164,7 @@ static session_cb_vft_t pfcp_session_server_session_cb_vft = {
 static void
 pfcp_session_server_session_cleanup_cb (void *ps_handlep)
 {
-  pfcp_session_t *ps;
-  uword ps_handle;
-  ps_handle = pointer_to_uword (ps_handlep);
-  ps = pfcp_session_server_session_get (ps_handle >> 24, ps_handle & 0x00FFFFFF);
-  if (!ps)
-    return;
-  ps->timer_handle = ~0;
-  pfcp_session_server_session_disconnect (ps);
-  pfcp_session_server_session_cleanup (ps);
+  clib_warning ("called...");
 }
 
 static void
@@ -782,10 +284,10 @@ vnet_upf_pfcp_endpoint_add_del (ip46_address_t * ip, u32 fib_index, u8 add)
       a->app_index = pssm->app_index;
       a->sep_ext = (session_endpoint_cfg_t)SESSION_ENDPOINT_CFG_NULL;
       a->sep_ext.fib_index = fib_index;
-      a->sep_ext.transport_proto = TRANSPORT_PROTO_UDPC;
+      a->sep_ext.transport_proto = TRANSPORT_PROTO_UDP;
       a->sep_ext.is_ip4 = ip46_address_is_ip4 (ip);
       a->sep_ext.ip = *ip;
-      a->sep_ext.port = clib_host_to_net_u16 (8805);
+      a->sep_ext.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
 
       if ((rv = vnet_listen (a)) == 0)
 	mhash_set (&gtm->pfcp_endpoint_index, &key, a->handle, NULL);
@@ -882,10 +384,7 @@ pfcp_session_server_main_init (vlib_main_t * vm)
 
   num_threads = 1 /* main thread */  + vtm->n_threads;
   vec_validate (pssm->vpp_queue, num_threads - 1);
-  vec_validate (pssm->sessions, num_threads - 1);
-  vec_validate (pssm->session_to_pfcp_session, num_threads - 1);
 
-  clib_rwlock_init (&pssm->sessions_lock);
   clib_spinlock_init (&pssm->tw_lock);
 
   /* Init timer wheel and process */

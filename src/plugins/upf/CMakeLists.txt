@@ -40,7 +40,6 @@ if(HS_FOUND)
     pfcp.c
     upf_pfcp.c
     upf_pfcp_api.c
-    upf_pfcp_input.c
     upf_pfcp_server.c
     upf_pfcp_session_server.c
     upf_proxy.c

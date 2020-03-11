@@ -20,13 +20,13 @@
 #define MAX_LEN 128
 
 upf_node_assoc_t *pfcp_get_association (pfcp_node_id_t * node_id);
-upf_node_assoc_t *pfcp_new_association (u32 fib_index,
-				      ip46_address_t * lcl_addr,
-				      ip46_address_t * rmt_addr,
-				      pfcp_node_id_t * node_id);
+upf_node_assoc_t *pfcp_new_association (session_handle_t session_handle,
+					ip46_address_t * lcl_addr,
+					ip46_address_t * rmt_addr,
+					pfcp_node_id_t * node_id);
 void pfcp_release_association (upf_node_assoc_t * n);
 
-upf_session_t *pfcp_create_session (upf_node_assoc_t * assoc, int pfcp_fib_index,
+upf_session_t *pfcp_create_session (upf_node_assoc_t * assoc,
 				  const ip46_address_t * up_address,
 				  uint64_t cp_seid,
 				  const ip46_address_t * cp_address);

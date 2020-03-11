@@ -506,8 +506,9 @@ handle_association_setup_request (pfcp_msg_t * req,
     }
 
   n =
-    pfcp_new_association (req->fib_index, &req->lcl.address, &req->rmt.address,
-			&msg->request.node_id);
+    pfcp_new_association (req->session_handle,
+			  &req->lcl.address, &req->rmt.address,
+			  &msg->request.node_id);
   n->recovery_time_stamp = msg->recovery_time_stamp;
 
   SET_BIT (resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_UP_FUNCTION_FEATURES);
@@ -2333,7 +2334,7 @@ handle_session_establishment_request (pfcp_msg_t * req,
   SET_BIT (resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_UP_F_SEID);
   resp.up_f_seid.seid = msg->f_seid.seid;
 
-  is_ip4 = ip46_address_is_ip4 (&req->lcl.address);
+  is_ip4 = ip46_address_is_ip4 (&req->rmt.address);
   if (is_ip4)
     {
       resp.up_f_seid.flags |= IE_F_SEID_IP_ADDRESS_V4;
@@ -2351,8 +2352,7 @@ handle_session_establishment_request (pfcp_msg_t * req,
       ip_set (&cp_address, &msg->f_seid.ip6, 0);
     }
 
-  sess = pfcp_create_session (assoc, req->fib_index, &up_address,
-			    msg->f_seid.seid, &cp_address);
+  sess = pfcp_create_session (assoc, &up_address, msg->f_seid.seid, &cp_address);
 
   if (ISSET_BIT (msg->grp.fields, SESSION_ESTABLISHMENT_REQUEST_USER_PLANE_INACTIVITY_TIMER))
     {

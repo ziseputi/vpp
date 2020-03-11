@@ -52,15 +52,6 @@
   do { } while (0)
 #endif
 
-typedef enum
-{
-  EVENT_RX = 1,
-  EVENT_TX,
-  EVENT_URR,
-} pfcp_process_event_t;
-
-static vlib_node_registration_t pfcp_api_process_node;
-
 static void upf_pfcp_make_response (pfcp_msg_t * resp, pfcp_msg_t * req,
 				    size_t len);
 static void restart_response_timer (pfcp_msg_t * msg);
@@ -70,100 +61,26 @@ pfcp_server_main_t pfcp_server_main;
 #define MAX_HDRS_LEN    100	/* Max number of bytes for headers */
 
 static void
-flush_ip_lookup_tx_frames (vlib_main_t *vm, int is_ip4)
-{
-  pfcp_server_main_t *psm = &pfcp_server_main;
-  vlib_frame_t *f;
-  u32 next_index;
-
-  f = psm->ip_lookup_tx_frames[!is_ip4];
-  if (!f || f->n_vectors == 0)
-    return;
-
-  /* Send to IP lookup */
-  next_index = is_ip4 ? ip4_lookup_node.index : ip6_lookup_node.index;
-
-  vlib_put_frame_to_node (vm, next_index, f);
-  psm->ip_lookup_tx_frames[!is_ip4] = 0;
-}
-
-void upf_ip_lookup_tx (u32 bi, int is_ip4)
-{
-  pfcp_server_main_t *psm = &pfcp_server_main;
-  vlib_main_t *vm = vlib_get_main ();
-  u32 to_node_index;
-  vlib_frame_t *f;
-  u32 *to_next;
-
-  if (~0 == bi)
-    return;
-
-  to_node_index = is_ip4 ?
-    ip4_lookup_node.index : ip6_lookup_node.index;
-
-  f = psm->ip_lookup_tx_frames[!is_ip4];
-  if (!f)
-    {
-      f = vlib_get_frame_to_node (vm, to_node_index);
-      ASSERT (f);
-      psm->ip_lookup_tx_frames[!is_ip4] = f;
-    }
-
-  to_next = vlib_frame_vector_args (f);
-  to_next[f->n_vectors] = bi;
-  f->n_vectors += 1;
-
-  if (f->n_vectors == VLIB_FRAME_SIZE)
-    flush_ip_lookup_tx_frames (vm, is_ip4);
-}
-
-static void
 upf_pfcp_send_data (pfcp_msg_t * msg)
 {
-  vlib_main_t *vm = vlib_get_main ();
-  vlib_buffer_t *b0 = 0;
-  u32 bi0 = ~0;
-  int is_ip4;
-  u8 *data0;
+  app_session_transport_t at;
+  svm_msg_q_t *mq;
+  session_t *s;
 
-  if (vlib_buffer_alloc (vm, &bi0, 1) != 1)
-    {
-      gtp_debug ("can't allocate buffer for PFCP send event");
-      return;
-    }
+  s = session_get_from_handle_if_valid (msg->session_handle);
+  if (!s)
+    return;
 
-  b0 = vlib_get_buffer (vm, bi0);
-  VLIB_BUFFER_TRACE_TRAJECTORY_INIT (b0);
+  mq = session_main_get_vpp_event_queue (s->thread_index);
+  at.is_ip4 = ip46_address_is_ip4 (&msg->lcl.address);
+  at.lcl_ip = msg->lcl.address;
+  at.rmt_ip = msg->rmt.address;
+  at.lcl_port = msg->lcl.port;
+  at.rmt_port = msg->rmt.port;
 
-  b0->error = 0;
-  b0->flags = VNET_BUFFER_F_LOCALLY_ORIGINATED;
-  b0->current_data = 0;
-  b0->total_length_not_including_first_buffer = 0;
-
-  data0 = vlib_buffer_make_headroom (b0, MAX_HDRS_LEN);
-  clib_memcpy (data0, msg->data, _vec_len (msg->data));
-  b0->current_length = _vec_len (msg->data);
-
-  vlib_buffer_push_udp (b0, msg->lcl.port, msg->rmt.port, 1);
-  is_ip4 = ip46_address_is_ip4 (&msg->rmt.address);
-  if (is_ip4)
-    {
-      vlib_buffer_push_ip4 (vm, b0, &msg->lcl.address.ip4,
-			    &msg->rmt.address.ip4, IP_PROTOCOL_UDP, 1);
-    }
-  else
-    {
-      ip6_header_t *ih;
-      ih =
-	vlib_buffer_push_ip6 (vm, b0, &msg->lcl.address.ip6,
-			      &msg->rmt.address.ip6, IP_PROTOCOL_UDP);
-      vnet_buffer (b0)->l3_hdr_offset = (u8 *) ih - b0->data;
-    }
-
-  vnet_buffer (b0)->sw_if_index[VLIB_RX] = 0;
-  vnet_buffer (b0)->sw_if_index[VLIB_TX] = msg->fib_index;
-
-  upf_ip_lookup_tx (bi0, is_ip4);
+  app_send_dgram_raw (s->tx_fifo, &at, mq, msg->data,
+		      _vec_len (msg->data), SESSION_IO_EVT_TX,
+		      1 /* do_evt */ , 0);
 }
 
 static int
@@ -172,9 +89,12 @@ encode_pfcp_session_msg (upf_session_t * sx, u8 type,
 {
   pfcp_server_main_t *psm = &pfcp_server_main;
   upf_main_t *gtm = &upf_main;
+  upf_node_assoc_t *n;
   int r = 0;
 
   init_pfcp_msg (msg);
+
+  n = pool_elt_at_index (gtm->nodes, sx->assoc.node);
 
   msg->seq_no = clib_atomic_add_fetch (&psm->seq_no, 1) % 0x1000000;
   msg->node = sx->assoc.node;
@@ -201,23 +121,18 @@ encode_pfcp_session_msg (upf_session_t * sx, u8 type,
 
   msg->hdr->length = clib_host_to_net_u16 (_vec_len (msg->data) - 4);
 
-  msg->fib_index = sx->fib_index, msg->lcl.address = sx->up_address;
+  msg->session_handle = n->session_handle;
+  msg->lcl.address = sx->up_address;
   msg->rmt.address = sx->cp_address;
   msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
   msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
-  gtp_debug ("PFCP Msg no VRF %d from %U:%d to %U:%d\n",
-		msg->fib_index,
-		format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->lcl.port),
-		format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->rmt.port));
 
-  gtp_debug ("PFCP Msg no VRF %d from %U:%d to %U:%d\n",
-		msg->fib_index,
-		format_ip46_address, &sx->up_address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->lcl.port),
-		format_ip46_address, &sx->cp_address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->rmt.port));
+  gtp_debug ("PFCP Session Msg on session 0x%016lx from %U:%d to %U:%d\n",
+	     msg->session_handle,
+	     format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->lcl.port),
+	     format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->rmt.port));
 
   return 0;
 }
@@ -255,17 +170,18 @@ encode_pfcp_node_msg (upf_node_assoc_t * n, u8 type, struct pfcp_group *grp,
 
   msg->hdr->length = clib_host_to_net_u16 (_vec_len (msg->data) - 4);
 
-  msg->fib_index = n->fib_index;
+  msg->session_handle = n->session_handle;
   msg->lcl.address = n->lcl_addr;
   msg->rmt.address = n->rmt_addr;
   msg->lcl.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
   msg->rmt.port = clib_host_to_net_u16 (UDP_DST_PORT_PFCP);
-  gtp_debug ("PFCP Msg no VRF %d from %U:%d to %U:%d\n",
-		msg->fib_index,
-		format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->lcl.port),
-		format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
-		clib_net_to_host_u16 (msg->rmt.port));
+
+  gtp_debug ("PFCP Node Msg on session 0x%016lx from %U:%d to %U:%d\n",
+	     msg->session_handle,
+	     format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->lcl.port),
+	     format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
+	     clib_net_to_host_u16 (msg->rmt.port));
 
   return 0;
 }
@@ -589,7 +505,7 @@ upf_pfcp_make_response (pfcp_msg_t * resp, pfcp_msg_t * req, size_t len)
 {
   resp->timer = ~0;
   resp->seq_no = req->seq_no;
-  resp->fib_index = req->fib_index;
+  resp->session_handle = req->session_handle;
   resp->lcl = req->lcl;
   resp->rmt = req->rmt;
   vec_alloc (resp->data, len);
@@ -1324,77 +1240,12 @@ pfcp_process (vlib_main_t * vm, vlib_node_runtime_t * rt, vlib_frame_t * f)
       vec_reset_length (expired);
       vec_reset_length (event_data);
 
-      flush_ip_lookup_tx_frames (vm, 0);
-      flush_ip_lookup_tx_frames (vm, 1);
-
 #if CLIB_DEBUG > 10
       upf_validate_session_timers ();
 #endif
     }
 
   return (0);
-}
-
-void
-upf_pfcp_handle_input (vlib_main_t * vm, vlib_buffer_t * b, int is_ip4)
-{
-  upf_main_t *gtm = &upf_main;
-  ip46_address_fib_t key;
-  udp_header_t *udp;
-  ip4_header_t *ip4;
-  ip6_header_t *ip6;
-  pfcp_msg_t *msg;
-  u8 *data;
-  uword *p;
-
-  /* signal PFCP process to handle data */
-  msg = clib_mem_alloc_aligned_no_fail (sizeof (*msg), CLIB_CACHE_LINE_BYTES);
-  memset (msg, 0, sizeof (*msg));
-  msg->fib_index = vnet_buffer (b)->ip.fib_index;
-
-  /* udp_local hands us a pointer to the udp data */
-  data = vlib_buffer_get_current (b);
-  udp = (udp_header_t *) (data - sizeof (*udp));
-
-  if (is_ip4)
-    {
-      /* $$$$ fixme: udp_local doesn't do ip options correctly anyhow */
-      ip4 = (ip4_header_t *) (((u8 *) udp) - sizeof (*ip4));
-      ip_set (&msg->lcl.address, &ip4->dst_address, is_ip4);
-      ip_set (&msg->rmt.address, &ip4->src_address, is_ip4);
-    }
-  else
-    {
-      ip6 = (ip6_header_t *) (((u8 *) udp) - sizeof (*ip6));
-      ip_set (&msg->lcl.address, &ip6->dst_address, is_ip4);
-      ip_set (&msg->rmt.address, &ip6->src_address, is_ip4);
-    }
-
-  msg->lcl.port = udp->dst_port;
-  msg->rmt.port = udp->src_port;
-
-  key.addr = msg->lcl.address;
-  key.fib_index = msg->fib_index;
-
-  p = mhash_get (&gtm->pfcp_endpoint_index, &key);
-  if (!p)
-    {
-      clib_mem_free (msg);
-      return;
-    }
-  msg->pfcp_endpoint = p[0];
-
-  msg->data = vec_new (u8, vlib_buffer_length_in_chain (vm, b));
-  vlib_buffer_contents (vm, vlib_get_buffer_index (vm, b), msg->data);
-
-  gtp_debug ("sending event %p %U:%d - %U:%d, data %p", msg,
-	     format_ip46_address, &msg->rmt.address, IP46_TYPE_ANY,
-	     clib_net_to_host_u16 (msg->rmt.port),
-	     format_ip46_address, &msg->lcl.address, IP46_TYPE_ANY,
-	     clib_net_to_host_u16 (msg->lcl.port), msg->data);
-
-  vlib_process_signal_event_mt (vm, pfcp_api_process_node.index, EVENT_RX,
-				(uword) msg);
 }
 
 void
@@ -1430,7 +1281,7 @@ pfcp_server_main_init (vlib_main_t * vm)
 }
 
 /* *INDENT-OFF* */
-VLIB_REGISTER_NODE (pfcp_api_process_node, static) = {
+VLIB_REGISTER_NODE (pfcp_api_process_node) = {
     .function = pfcp_process,
     .type = VLIB_NODE_TYPE_PROCESS,
     .process_log2_n_stack_bytes = 16,
