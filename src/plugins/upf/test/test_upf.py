@@ -9,7 +9,7 @@ from scapy.contrib.pfcp import CauseValues, IE_ApplyAction, IE_Cause, \
     IE_QueryURR, IE_RecoveryTimeStamp, IE_RedirectInformation, IE_ReportType, \
     IE_ReportingTriggers, IE_SDF_Filter, IE_SourceInterface, IE_StartTime, \
     IE_TimeQuota, IE_UE_IP_Address, IE_URR_Id, IE_UR_SEQN, \
-    IE_UsageReportTrigger, IE_VolumeMeasurement, PFCP, \
+    IE_UsageReportTrigger, IE_VolumeMeasurement, IE_ApplicationId, PFCP, \
     PFCPAssociationSetupRequest, PFCPAssociationSetupResponse, \
     PFCPHeartbeatRequest, PFCPHeartbeatResponse, PFCPSessionDeletionRequest, \
     PFCPSessionDeletionResponse, PFCPSessionEstablishmentRequest, \
@@ -24,9 +24,14 @@ def seid():
     return uuid.uuid4().int & (1 << 64) - 1
 
 
+def filter_ies(ies):
+    return [ie for ie in ies if ie]
+
+
 DROP_IP = "192.0.2.99"
 REDIR_IP = "192.0.2.100"
 REDIR_TARGET_IP = "198.51.100.42"
+APP_RULE_IP = "192.0.2.101"
 
 
 class TestUPF(framework.VppTestCase):
@@ -79,6 +84,9 @@ class TestUPF(framework.VppTestCase):
             "create upf application name TST",
             "upf application TST rule 3000 add l7 regex " +
             r"^https?://(.*\\.)*(example)\\.com/",
+            "upf application TST rule 3001 add ipfilter " +
+            "permit out ip from %s to assigned" % APP_RULE_IP,
+            # FIXME: order!!!
         ]
 
     def setUp(self):
@@ -107,9 +115,20 @@ class TestUPF(framework.VppTestCase):
         try:
             self.associate()
             self.heartbeat()
-            self.establish_reporting_session()
+            self.establish_reporting_session(report_app=False)
             self.verify_reporting()
             self.verify_session_modification()
+            self.delete_session()
+        finally:
+            self.vapi.cli("show error")
+
+    def test_app_reporting(self):
+        try:
+            self.associate()
+            self.heartbeat()
+            self.establish_reporting_session(report_app=True)
+            self.verify_app_reporting()
+            self.vapi.cli("show upf flows")
             self.delete_session()
         finally:
             self.vapi.cli("show error")
@@ -249,11 +268,11 @@ class TestUPF(framework.VppTestCase):
         self.assertEqual(resp[IE_FSEID].ipv4, self.if_cp.local_ip4)
         self.assertEqual(resp[IE_FSEID].seid, self.cur_seid)
 
-    def establish_reporting_session(self):
+    def establish_reporting_session(self, report_app=False):
         cp_ip = self.if_cp.remote_ip4
         ue_ip = self.if_access.remote_ip4
         self.cur_seid = seid()
-        resp = self.chat(PFCPSessionEstablishmentRequest(IE_list=[
+        resp = self.chat(PFCPSessionEstablishmentRequest(IE_list=filter_ies([
             IE_CreateFAR(IE_list=[
                 IE_ApplyAction(FORW=1),
                 IE_FAR_Id(id=1),
@@ -275,8 +294,8 @@ class TestUPF(framework.VppTestCase):
                 IE_ReportingTriggers(start_of_traffic=1),
                 IE_TimeQuota(quota=60),
                 IE_URR_Id(id=1)
-            ]),
-            IE_CreatePDR(IE_list=[
+            ]) if not report_app else None,
+            IE_CreatePDR(IE_list=filter_ies([
                 IE_FAR_Id(id=1),
                 IE_PDI(IE_list=[
                     IE_NetworkInstance(instance="access"),
@@ -288,8 +307,8 @@ class TestUPF(framework.VppTestCase):
                 ]),
                 IE_PDR_Id(id=1),
                 IE_Precedence(precedence=200),
-                IE_URR_Id(id=1)
-            ]),
+                IE_URR_Id(id=1) if not report_app else None
+            ])),
             IE_CreatePDR(IE_list=[
                 IE_FAR_Id(id=2),
                 IE_PDI(IE_list=[
@@ -303,9 +322,27 @@ class TestUPF(framework.VppTestCase):
                 IE_PDR_Id(id=2),
                 IE_Precedence(precedence=200),
             ]),
+            IE_CreateURR(IE_list=[
+                IE_MeasurementMethod(VOLUM=1, DURAT=1),
+                IE_ReportingTriggers(),
+                IE_TimeQuota(quota=60),
+                IE_URR_Id(id=2)
+            ]) if report_app else None,
+            IE_CreatePDR(IE_list=[
+                IE_FAR_Id(id=1),
+                IE_PDI(IE_list=[
+                    IE_ApplicationId(id="TST"),
+                    IE_NetworkInstance(instance="access"),
+                    IE_SourceInterface(interface="Access"),
+                    IE_UE_IP_Address(ipv4=ue_ip, SD=1, V4=1)
+                ]),
+                IE_PDR_Id(id=3),
+                IE_Precedence(precedence=100),
+                IE_URR_Id(id=2)
+            ]) if report_app else None,
             IE_FSEID(ipv4=cp_ip, v4=1, seid=self.cur_seid),
             IE_NodeId(id_type=2, id="ergw")
-        ]), PFCPSessionEstablishmentResponse, seid=self.cur_seid)
+        ])), PFCPSessionEstablishmentResponse, seid=self.cur_seid)
         self.assertEqual(CauseValues[resp[IE_Cause].cause], "Request accepted")
         self.assertEqual(resp[IE_FSEID].ipv4, self.if_cp.local_ip4)
         self.assertEqual(resp[IE_FSEID].seid, self.cur_seid)
@@ -494,6 +531,40 @@ class TestUPF(framework.VppTestCase):
         self.assertEqual(vm.downlink, 0)
         # TODO: verify more packets in both directions
 
+    def verify_app_reporting(self):
+        # Access -> SGi
+        to_send = Ether(src=self.if_access.remote_mac,
+                        dst=self.if_access.local_mac) / \
+                        IP(src=self.if_access.remote_ip4,
+                           dst=APP_RULE_IP) / \
+                        UDP(sport=12345, dport=23456) / \
+                        Raw(b"42")
+        send_len = len(to_send[IP])
+        self.if_access.add_stream(to_send)
+        self.pg_enable_capture(self.pg_interfaces)
+        self.pg_start()
+
+        pkt = self.if_sgi.get_capture(1)[0]
+        self.assertEqual(pkt[IP].src, self.if_access.remote_ip4)
+        self.assertEqual(pkt[IP].dst, APP_RULE_IP)
+        self.assertEqual(pkt[UDP].sport, 12345)
+        self.assertEqual(pkt[UDP].dport, 23456)
+        self.assertEqual(pkt[Raw].load, b"42")
+
+        resp = self.chat(PFCPSessionModificationRequest(IE_list=[
+            IE_QueryURR(IE_list=[IE_URR_Id(id=2)])
+        ]), PFCPSessionModificationResponse, seid=self.cur_seid)
+        vm = resp[IE_VolumeMeasurement]
+        self.assertTrue(vm.DLVOL)
+        self.assertTrue(vm.ULVOL)
+        self.assertTrue(vm.TOVOL)
+        self.assertEqual(vm.total, send_len)
+        self.assertEqual(vm.uplink, send_len)
+        self.assertEqual(vm.downlink, 0)
+
+
+# TODO: verify non-matching packets
+# TODO: test https / http app detection
 # TODO: send session report response
 # TODO: check for heartbeat requests from UPF
 # TODO: check redirects (perhaps IPv4 type redirect) -- currently broken
